@@ -1,0 +1,40 @@
+.venv/
+venv/
+__pycache__/
+*.pyc
+build/
+dist/
+*.spec
+
+# Local application data, logs and development caches
+*.sqlite
+*.sqlite3
+*.sqlite3-*
+*.db
+*.db-*
+*.log
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.idea/
+.vscode/
+
+# Local configuration and credentials; TLS fixtures are public test data
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+*.p12
+*.pfx
+!tests/fixtures/tls/*.key
+!tests/fixtures/tls/*.pem
+
+# Reference screenshots and generated visual checks
+/scrinshot/
+/docs/ui/
+
+# OS metadata
+.DS_Store
+Thumbs.db
+Desktop.ini

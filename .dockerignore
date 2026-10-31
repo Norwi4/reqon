@@ -1,0 +1,9 @@
+build
+dist
+.venv
+.git
+__pycache__
+**/__pycache__
+*.spec
+scrinshot
+docs/ui
