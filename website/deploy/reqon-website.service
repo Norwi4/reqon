@@ -1,0 +1,28 @@
+[Unit]
+Description=Reqon website and GitHub release catalog
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=reqon
+Group=reqon
+WorkingDirectory=/opt/reqon/website
+Environment=NODE_ENV=production
+Environment=HOST=127.0.0.1
+Environment=PORT=4173
+Environment=SITE_URL=https://reqon.ru
+Environment=RELEASE_SOURCE=github
+Environment=GITHUB_REPO=Norwi4/reqon
+ExecStart=/opt/reqon/node/bin/node /opt/reqon/website/server.mjs
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/reqon/website/.cache
+UMask=0027
+
+[Install]
+WantedBy=multi-user.target

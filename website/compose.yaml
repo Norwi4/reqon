@@ -1,0 +1,36 @@
+services:
+  app:
+    build: .
+    restart: unless-stopped
+    environment:
+      SITE_URL: https://${DOMAIN:?Set DOMAIN in .env}
+      GITHUB_REPO: ${GITHUB_REPO:-Norwi4/reqon}
+      RELEASE_SOURCE: ${RELEASE_SOURCE:-hybrid}
+      GITHUB_TOKEN: ${GITHUB_TOKEN:-}
+    volumes:
+      - ${RELEASES_HOST_DIR:-../dist}:/srv/releases:ro
+      - release-cache:/app/.cache
+    expose:
+      - "4173"
+    security_opt:
+      - no-new-privileges:true
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    environment:
+      DOMAIN: ${DOMAIN:?Set DOMAIN in .env}
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      app:
+        condition: service_healthy
+volumes:
+  release-cache:
+  caddy-data:
+  caddy-config:

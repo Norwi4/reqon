@@ -4,6 +4,9 @@ from PySide6.QtCore import Qt,QSize,QRectF,QByteArray
 from PySide6.QtGui import QColor,QPainter,QTextOption,QFontMetricsF
 from PySide6.QtSvg import QSvgRenderer
 from PySide6.QtWidgets import (QWidget,QLabel,QVBoxLayout,QScrollArea,QTextEdit,QSizePolicy,QFrame)
+from ui_brand import USE_REQON_UI,COLORS as C,stylesheet
+if USE_REQON_UI:
+    from ui_state_widgets import StateIllustration
 
 
 class StatusBadge(QLabel):
@@ -11,7 +14,8 @@ class StatusBadge(QLabel):
         'warning':('#49381e','#edc584'),'neutral':('#343434','#bdbdbd')}
     def __init__(self):
         super().__init__('');self.tone='neutral';self.setFixedHeight(20);self.setMaximumWidth(260)
-        self.setStyleSheet('font-size:12px;')
+        if USE_REQON_UI:self.PALETTE={'error':(C['error_bg'],C['error']),'success':(C['success_bg'],C['success']),'warning':(C['warning_bg'],C['warning']),'neutral':(C['selected'],C['muted'])}
+        self.setStyleSheet(stylesheet('font-size:12px;'))
         self.setSizePolicy(QSizePolicy.Policy.Preferred,QSizePolicy.Policy.Fixed)
         self.setTextFormat(Qt.TextFormat.PlainText)
     def setText(self,value):
@@ -63,7 +67,7 @@ class ErrorIllustration(QWidget):
 
 class ErrorDetails(QTextEdit):
     def __init__(self):
-        super().__init__();self.setReadOnly(True);self.setFrameShape(QFrame.Shape.NoFrame)
+        super().__init__();self.setObjectName('responseErrorDetails');self.setReadOnly(True);self.setFrameShape(QFrame.Shape.NoFrame)
         self.setLineWrapMode(QTextEdit.LineWrapMode.WidgetWidth)
         self.setWordWrapMode(QTextOption.WrapMode.WrapAtWordBoundaryOrAnywhere)
         self.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
@@ -74,7 +78,12 @@ class ErrorDetails(QTextEdit):
         self.set_tone('error')
     def set_tone(self,tone):
         background='#303030' if tone=='neutral' else '#5c1c06'
-        self.setStyleSheet(f'QTextEdit {{background:{background};color:#f0dfd8;border:0;border-radius:3px;padding:10px 14px;font-size:12px;}}')
+        if USE_REQON_UI:background=C['selected'] if tone=='neutral' else C['error_bg']
+        self.setStyleSheet(stylesheet(f'QTextEdit {{background:{background};color:#f0dfd8;border:0;border-radius:3px;padding:10px 14px;font-size:12px;}}'))
+        if USE_REQON_UI:
+            from ui_editor_behavior import settings
+            from ui_typography import apply_editor_font
+            self._reqon_font_base_style=self.styleSheet();apply_editor_font(self,settings())
     def set_details(self,text):
         self.setPlainText(text);self.selectAll();self.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.moveCursor(self.textCursor().MoveOperation.Start);self.fit_height()
@@ -88,27 +97,32 @@ class ErrorPanel(QScrollArea):
     def __init__(self):
         super().__init__();self.setFrameShape(QFrame.Shape.NoFrame);self.setWidgetResizable(True)
         self.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        content=QWidget();content.setObjectName('responseErrorContent');content.setStyleSheet('QWidget#responseErrorContent {background:#212121;}')
+        content=QWidget();content.setObjectName('responseErrorContent');content.setStyleSheet(stylesheet('QWidget#responseErrorContent {background:#212121;}'))
         self.setWidget(content);outer=QVBoxLayout(content);outer.setContentsMargins(20,20,20,24);outer.setSpacing(0)
         outer.addStretch(1)
         self.card=QWidget();self.card.setMaximumWidth(620);self.card.setSizePolicy(QSizePolicy.Policy.Expanding,QSizePolicy.Policy.Preferred)
         layout=QVBoxLayout(self.card);layout.setContentsMargins(0,0,0,0);layout.setSpacing(10)
-        self.illustration=ErrorIllustration();layout.addWidget(self.illustration,0,Qt.AlignmentFlag.AlignHCenter)
+        self.illustration=StateIllustration('error-service-unavailable') if USE_REQON_UI else ErrorIllustration()
+        self.asset_name=None;layout.addWidget(self.illustration,0,Qt.AlignmentFlag.AlignHCenter)
         self.title=QLabel();self.title.setTextFormat(Qt.TextFormat.PlainText);self.title.setWordWrap(True)
-        self.title.setAlignment(Qt.AlignmentFlag.AlignCenter);self.title.setStyleSheet('font-size:14px;font-weight:600;color:#f2f2f2;')
+        self.title.setAlignment(Qt.AlignmentFlag.AlignCenter);self.title.setStyleSheet(stylesheet('font-size:14px;font-weight:600;color:#f2f2f2;'))
         self.title.setSizePolicy(QSizePolicy.Policy.Ignored,QSizePolicy.Policy.Preferred);layout.addWidget(self.title)
         self.hint=QLabel();self.hint.setTextFormat(Qt.TextFormat.PlainText);self.hint.setWordWrap(True)
-        self.hint.setAlignment(Qt.AlignmentFlag.AlignCenter);self.hint.setStyleSheet('font-size:12px;color:#a6a6a6;')
+        self.hint.setAlignment(Qt.AlignmentFlag.AlignCenter);self.hint.setStyleSheet(stylesheet('font-size:12px;color:#a6a6a6;'))
         self.hint.setSizePolicy(QSizePolicy.Policy.Ignored,QSizePolicy.Policy.Preferred);layout.addWidget(self.hint)
         self.details=ErrorDetails();layout.addWidget(self.details,0,Qt.AlignmentFlag.AlignHCenter)
         outer.addWidget(self.card,0,Qt.AlignmentFlag.AlignHCenter);outer.addStretch(1)
     def set_error(self,info):
         self.title.setText(info['title']);self.hint.setText(info.get('hint',''))
-        self.illustration.set_kind(info.get('illustration','request'))
+        if USE_REQON_UI:
+            self.asset_name=info.get('asset') or 'brand'
+            self.illustration.set_state(None if self.asset_name=='brand' else self.asset_name)
+            self.illustration.setVisible(bool(self.asset_name) and self.viewport().height()>=240)
+        else:self.illustration.set_kind(info.get('illustration','request'))
         self.details.set_tone(info.get('tone','error'));self.details.set_details(info.get('details',''))
         self.details.setAccessibleName('Error details');self.verticalScrollBar().setValue(0)
     def resizeEvent(self,event):
         super().resizeEvent(event)
         self.card.setFixedWidth(max(100,min(620,self.viewport().width()-40)))
         self.details.setFixedWidth(max(80,min(552,self.card.width())))
-        self.illustration.setVisible(self.viewport().height()>=240)
+        self.illustration.setVisible(self.viewport().height()>=240 and (not USE_REQON_UI or bool(self.asset_name)))

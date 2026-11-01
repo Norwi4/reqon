@@ -157,7 +157,8 @@ class SettingsUITests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             store=Store(directory);window=MainWindow(store);window.show();page=window.current_page()
             try:
-                self.assertFalse(page.tls_verify.isChecked());self.assertEqual(page.grpc_max_response_mb.value(),10);self.assertEqual(page.grpc_timeout_ms.value(),0)
+                # New requests inherit the 50 MB response limit from General.
+                self.assertFalse(page.tls_verify.isChecked());self.assertEqual(page.grpc_max_response_mb.value(),50);self.assertEqual(page.grpc_timeout_ms.value(),0)
                 page.tls_verify.click();page.tls_server_name.setText('localhost');page.grpc_emit_defaults.click()
                 page.grpc_max_response_mb.setValue(27);page.grpc_timeout_ms.setValue(1500)
                 cid=store.insert('collections',{'name':'Settings','kind':'grpc'});page.collection_id=cid

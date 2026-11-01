@@ -1,0 +1,9 @@
+[Unit]
+Description=Enable Reqon HTTPS after DNS propagation
+After=network-online.target nginx.service reqon-website.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 /opt/reqon/website/deploy/finish-https.py
+TimeoutStartSec=300

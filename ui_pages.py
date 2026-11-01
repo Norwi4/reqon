@@ -2,7 +2,7 @@ import json
 import re
 from pathlib import Path
 from PySide6.QtCore import Qt, Signal, QThread, QSize, Slot, QObject, QTimer, QStandardPaths
-from PySide6.QtGui import QFont
+from PySide6.QtGui import QFont,QColor
 from PySide6.QtWidgets import (QWidget, QFrame, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit,
     QPushButton, QToolButton, QMenu, QComboBox, QTabWidget, QSplitter, QFormLayout,
     QFileDialog, QApplication, QDialog, QListWidget, QMessageBox, QScrollArea,
@@ -15,11 +15,15 @@ from ui_tls import TLSButton
 from ui_grpc_settings import settings_tab
 from request_transport import TLSOptions, grpc_metadata
 from ui_response_error import StatusBadge,ErrorPanel
+from ui_brand import USE_REQON_UI,METHOD_COLORS,TAB_HEIGHT,stylesheet
+if USE_REQON_UI:
+    from ui_windows import RequestSplitter,ResponseEmpty,response_metrics,TabCorner
+    from ui_error_states import decorate_failure,http_error_info
 
 HTTP_DEFAULT = {'name':'Untitled Request','method':'GET','url':'','params':[], 'headers':[],
     'auth_type':'No Auth','auth_value':'','body_type':'none','body':'','form':[]}
 GRPC_DEFAULT = {'kind':'grpc','name':'Untitled gRPC Request','server':'','tls':False,'tls_verify':False,
-    'service':'','rpc_method':'','message':'{}','metadata':[],'descriptor_file':''}
+    'service':'','rpc_method':'','message':'','metadata':[],'descriptor_file':''}
 
 
 def row(parent=None, margins=(0,0,0,0), spacing=8):
@@ -58,10 +62,11 @@ class ResponsePanel(QWidget):
         layout=QVBoxLayout(self); layout.setContentsMargins(0,0,0,0); layout.setSpacing(0)
         self.tabs=QTabWidget(); self.tabs.setObjectName('responseTabs')
         self.tabs.tabBar().setDrawBase(False)
-        self.status_header=QWidget();self.status_header.setFixedHeight(38)
-        status_row=row(self.status_header,(0,7,8,7),8)
+        self.status_header=TabCorner() if USE_REQON_UI else QWidget();self.status_header.setFixedHeight(TAB_HEIGHT if USE_REQON_UI else 38)
+        status_padding=6 if USE_REQON_UI else 7
+        status_row=row(self.status_header,(0,status_padding,8,status_padding),8)
         self.status=StatusBadge();status_row.addWidget(self.status,1)
-        self.metrics=QLabel();self.metrics.setStyleSheet('font-size:11px;color:#999;')
+        self.metrics=QLabel();self.metrics.setStyleSheet(stylesheet('font-size:11px;color:#999;'))
         self.metrics.setSizePolicy(QSizePolicy.Policy.Preferred,QSizePolicy.Policy.Preferred);self.metrics.setMaximumWidth(130)
         status_row.addWidget(self.metrics)
         self.copy_button=tool('copy','Copy response',self.copy_response);self.copy_button.setFixedSize(24,24);self.copy_button.hide();status_row.addWidget(self.copy_button)
@@ -70,7 +75,7 @@ class ResponsePanel(QWidget):
         toolbar=QWidget(); toolbar.setFixedHeight(36); controls=row(toolbar,spacing=8)
         self.editor=CodeEditor(readonly=True)
         self.editor.setPlaceholderText('Click Invoke to get a response' if grpc else 'Click Send to get a response')
-        controls.addWidget(tool('wrap','Toggle line wrapping',self.editor.toggle_wrap))
+        controls.addWidget(self.editor.wrap_control())
         controls.addStretch()
         self.search=QLineEdit(); self.search.setPlaceholderText('Find in response'); self.search.setFixedWidth(190); self.search.hide()
         self.search.returnPressed.connect(self.find_next); controls.addWidget(self.search)
@@ -80,15 +85,21 @@ class ResponsePanel(QWidget):
         body_layout.addWidget(toolbar); body_layout.addWidget(self.editor,1)
         self.body_stack=QStackedWidget();self.body_stack.addWidget(body)
         self.error_panel=ErrorPanel();self.body_stack.addWidget(self.error_panel)
+        if USE_REQON_UI:
+            self.empty=ResponseEmpty();self.body_stack.addWidget(self.empty);self.body_stack.setCurrentWidget(self.empty)
         self.tabs.addTab(self.body_stack,'Response' if grpc else 'Body')
         self.headers=KeyValueTable(readonly=True); self.tabs.addTab(self.headers,'Metadata' if grpc else 'Headers')
         self.trailers=KeyValueTable(readonly=True)
         if grpc: self.tabs.addTab(self.trailers,'Trailers')
+        elif USE_REQON_UI:
+            self.http_error=ErrorPanel();self.http_error_index=self.tabs.addTab(self.http_error,'Status')
+            self.tabs.setTabVisible(self.http_error_index,False)
         layout.addWidget(self.tabs)
         self._copy_text=''
     def copy_response(self):QApplication.clipboard().setText(self._copy_text)
     def set_pending(self):
         self.status.setText('Sending…');self.metrics.clear();self.copy_button.hide()
+        if USE_REQON_UI and self.body_stack.currentWidget() is self.empty:self.empty.pending()
     def resizeEvent(self,event):
         super().resizeEvent(event);self.fit_status()
     def fit_status(self):
@@ -103,6 +114,9 @@ class ResponsePanel(QWidget):
         path,_=QFileDialog.getSaveFileName(self,'Save response','response.json','JSON (*.json);;Text (*.txt);;All files (*)')
         if path: Path(path).write_text(self.editor.toPlainText(),encoding='utf-8')
     def show_response(self,result):
+        if USE_REQON_UI:
+            if 'error' in result:result=decorate_failure(dict(result))
+            if not self.grpc:self.tabs.setTabVisible(self.http_error_index,False)
         self.copy_button.show()
         headers=result.get('headers',{})
         entries=list(headers.items()) if isinstance(headers,dict) else headers
@@ -112,12 +126,13 @@ class ResponsePanel(QWidget):
         self.trailers.set_rows([[str(k),str(v),''] for k,v in trailers])
         if self.grpc:self.tabs.setTabText(2,'Trailers'+(f' ({len(trailers)})' if trailers else ''))
         duration=result.get('duration',0)
-        elapsed=f'{duration:g} ms' if duration<1000 else f'{duration/1000:.2f} s'
+        elapsed='' if USE_REQON_UI else f'{duration:g} ms' if duration<1000 else f'{duration/1000:.2f} s'
         if 'error' in result:
             info=result.get('error_info') or {'title':'Request failed','hint':'Review the error details below.',
                 'details':result['error'],'badge':'REQUEST_ERROR','tone':'error'}
             self.status.setText(info['badge']);self.status.set_tone(info.get('tone','error'))
             self.metrics.setText(elapsed);self.metrics.setToolTip(elapsed)
+            if USE_REQON_UI:self.metrics.setText(response_metrics(result));self.metrics.setToolTip(self.metrics.text())
             self.editor.setPlainText(result['error']);self.error_panel.set_error(info)
             self.body_stack.setCurrentIndex(1);self.tabs.setCurrentIndex(0)
             self._copy_text=info['badge']+'\n'+info['title']+'\n\n'+info.get('details',result['error']);self.copy_button.setToolTip('Copy error details')
@@ -126,12 +141,26 @@ class ResponsePanel(QWidget):
         self.status.setText(f"{result['status']} {result['reason']}")
         tone='success' if self.grpc or 200<=result['status']<300 else 'error' if result['status']>=400 else 'warning'
         self.status.set_tone(tone)
-        self.metrics.setText(f"{elapsed}  ·  {result['size']:,} B");self.metrics.setToolTip(self.metrics.text())
+        self.metrics.setText(response_metrics(result) if USE_REQON_UI else f"{elapsed}  ·  {result['size']:,} B");self.metrics.setToolTip(self.metrics.text())
         text=result['body']
-        try: text=json.dumps(json.loads(text),ensure_ascii=False,indent=2)
-        except (ValueError,TypeError): pass
+        from general_settings import GeneralConfig
+        config=getattr(self,'format_config',GeneralConfig());media_type=next((str(v).lower() for k,v in entries if str(k).lower()=='content-type'),'')
+        if self.grpc or config.response_format=='JSON' or 'json' in media_type:
+            try:text=json.dumps(json.loads(text),ensure_ascii=False,indent=config.indent)
+            except (ValueError,TypeError):pass
+        elif 'xml' in media_type:
+            try:
+                from xml.dom.minidom import parseString
+                text=parseString(text).toprettyxml(indent=config.indent)
+            except Exception:pass
         self.editor.setPlainText(text)
         self._copy_text=text;self.copy_button.setToolTip('Copy response');self.fit_status()
+        if USE_REQON_UI:
+            if not self.grpc and result['status']>=400:
+                info=http_error_info(result);self.http_error.set_error(info);self.tabs.setTabVisible(self.http_error_index,True)
+                if not text:self.error_panel.set_error(info);self.body_stack.setCurrentWidget(self.error_panel)
+            elif not text:
+                self.empty.set_state('response-no-content');self.body_stack.setCurrentWidget(self.empty)
 
 
 class BasePage(QWidget):
@@ -153,7 +182,7 @@ class BasePage(QWidget):
         title_row.addWidget(self.protocol)
         self.name=QLineEdit(data['name']); self.name.setObjectName('requestName'); title_row.addWidget(self.name,1)
         self.save_state=QLabel('Saved locally'); title_row.addWidget(self.save_state)
-        save=tool('save','Save request (Ctrl+S)',lambda:self.save_requested.emit(self),'Save'); title_row.addWidget(save)
+        save=tool('save','Save request (Ctrl+S)',lambda:self.save_requested.emit(self),'Save');save.setObjectName('saveRequestButton');title_row.addWidget(save)
         self.layout_root.addWidget(title)
         address=QWidget(); address_row=row(address,(16,8,16,8),8)
         self.address_frame=QFrame(); self.address_frame.setObjectName('requestBar'); self.address_frame.setFixedHeight(42)
@@ -162,18 +191,22 @@ class BasePage(QWidget):
         self.send_button=QPushButton('Invoke' if kind=='grpc' else 'Send'); self.send_button.setObjectName('sendButton'); self.send_button.setFixedSize(70,40)
         self.send_button.clicked.connect(lambda:self.send_requested.emit(self)); address_row.addWidget(self.send_button)
         self.layout_root.addWidget(address)
-        self.split=QSplitter(Qt.Orientation.Vertical); self.split.setHandleWidth(1); self.split.setChildrenCollapsible(False)
+        self.split=RequestSplitter() if USE_REQON_UI else QSplitter(Qt.Orientation.Vertical)
+        if not USE_REQON_UI:self.split.setHandleWidth(1)
+        self.split.setChildrenCollapsible(False)
         self.tabs=QTabWidget(); self.tabs.setObjectName('editorTabs'); self.tabs.setDocumentMode(True)
         self.tabs.tabBar().setDrawBase(False)
         self.split.addWidget(self.tabs)
         self.response=ResponsePanel(kind=='grpc'); self.split.addWidget(self.response)
         self.split.setStretchFactor(0,1); self.split.setStretchFactor(1,1); self.split.setSizes([385,390])
+        if USE_REQON_UI:
+            self.tabs.setMinimumHeight(170);self.response.setMinimumHeight(140)
         self.layout_root.addWidget(self.split,1)
         self.status=self.response.status; self.response_body=self.response.editor
         self.response_headers=self.response.headers
     def set_busy(self,busy):
-        self.busy=busy; self.send_button.setEnabled(not busy or self.kind=='grpc'); self.protocol.setEnabled(not busy)
-        self.send_button.setText(('Cancel' if self.kind=='grpc' else 'Sending…') if busy else 'Invoke' if self.kind=='grpc' else 'Send')
+        self.busy=busy; self.send_button.setEnabled(True); self.protocol.setEnabled(not busy)
+        self.send_button.setText('Cancel' if busy else 'Invoke' if self.kind=='grpc' else 'Send')
         if busy:self.response.set_pending()
     def show_response(self,result):
         self.last_response=result; self.set_busy(False); self.response.show_response(result)
@@ -182,10 +215,10 @@ class BasePage(QWidget):
     def add_editor(self,editor):
         widget=QWidget(); layout=QVBoxLayout(widget); layout.setContentsMargins(8,0,8,0); layout.setSpacing(0)
         layout.addWidget(editor,1)
-        bottom=QFrame(); bottom.setFixedHeight(42); bottom.setStyleSheet('QFrame { border-top:1px solid #333; }')
+        bottom=QFrame(); bottom.setFixedHeight(42); bottom.setStyleSheet(stylesheet('QFrame { border-top:1px solid #333; }'))
         controls=row(bottom,(4,0,0,0),8)
         controls.addWidget(tool('format','Format JSON',editor.format_json,'Format JSON'))
-        controls.addWidget(tool('wrap','Toggle line wrapping',editor.toggle_wrap)); controls.addStretch()
+        controls.addWidget(editor.wrap_control()); controls.addStretch()
         if self.kind=='grpc':
             self.example_button=tool('example','Generate test values from the selected method contract',self.use_example_message,'Use Example Message')
             self.example_button.setEnabled(False); controls.insertWidget(1,self.example_button)
@@ -197,7 +230,12 @@ class RequestPage(BasePage):
     def __init__(self,data=None,request_id=None):
         d=dict(HTTP_DEFAULT,**(data or {})); super().__init__(d,request_id,'http')
         self.method=QComboBox(); self.method.addItems(['GET','POST','PUT','PATCH','DELETE','HEAD','OPTIONS'])
-        self.method.setCurrentText(d['method']); self.method.setFixedWidth(100); self.method.setStyleSheet('color:#8cd4a6;font-weight:600;')
+        if self.method.findText(d['method'])<0:self.method.addItem(d['method'])
+        self.method.setCurrentText(d['method']); self.method.setFixedWidth(100); self.method.setStyleSheet(stylesheet('color:#8cd4a6;font-weight:600;'))
+        if USE_REQON_UI:
+            def method_color(value):self.method.setStyleSheet(f'color:{METHOD_COLORS.get(value,METHOD_COLORS["GET"])};font-weight:600;')
+            self.method.currentTextChanged.connect(method_color);method_color(self.method.currentText())
+            for index in range(self.method.count()):self.method.setItemData(index,QColor(METHOD_COLORS.get(self.method.itemText(index),METHOD_COLORS['GET'])),Qt.ItemDataRole.ForegroundRole)
         self.address_layout.addWidget(self.method); self.divider()
         self.url=QLineEdit(d['url']); self.url.setPlaceholderText('Enter URL or paste text'); self.address_layout.addWidget(self.url,1)
         self.url.returnPressed.connect(lambda:self.send_requested.emit(self))
@@ -208,27 +246,44 @@ class RequestPage(BasePage):
         form.addRow('Auth Type',self.auth_type); form.addRow('Value',self.auth_value); self.tabs.addTab(auth,'Authorization')
         self.headers=KeyValueTable(d.get('header_rows',d['headers'])); self.tabs.addTab(self.headers,'Headers')
         body_widget=QWidget(); body_layout=QVBoxLayout(body_widget); body_layout.setContentsMargins(0,0,0,0); body_layout.setSpacing(0)
-        self.body_type=QComboBox(); self.body_type.addItems(['none','raw','x-www-form-urlencoded']); self.body_type.setCurrentText(d['body_type'])
+        self.body_type=QComboBox(); self.body_type.addItems(['none','raw','x-www-form-urlencoded','file']); self.body_type.setCurrentText(d['body_type'])
         options=row(margins=(16,8,16,8)); options.addWidget(self.body_type); options.addStretch(); body_layout.addLayout(options)
         self.body=CodeEditor(d['body']); self.form=KeyValueTable(d.get('form_rows',d['form']))
         self.body_panel=self.add_editor(self.body)
         body_layout.addWidget(self.body_panel,1); body_layout.addWidget(self.form,1)
+        self.body_file_panel=QWidget();file_row=row(self.body_file_panel,(16,12,16,12))
+        self.body_file=QLineEdit(d.get('body_file',''));self.body_file.setPlaceholderText('Path relative to the working directory')
+        choose=QPushButton('Choose file');choose.clicked.connect(self.choose_body_file);file_row.addWidget(self.body_file,1);file_row.addWidget(choose);body_layout.addWidget(self.body_file_panel)
         self.body_type.currentTextChanged.connect(self._body_mode); self._body_mode(self.body_type.currentText())
         self.tabs.addTab(body_widget,'Body')
+        from ui_http_settings import settings_tab as http_settings_tab
+        self.tabs.addTab(http_settings_tab(self,d),'Settings')
         self.bulk=tool('docs','Bulk edit parameters',lambda:self.current_table().bulk_edit() if self.current_table() else None,'Bulk Edit')
         self.tabs.setCornerWidget(self.bulk)
         self.tabs.currentChanged.connect(lambda i:self.bulk.setVisible(self.current_table() is not None))
         self.headers.changed.connect(lambda:self.tabs.setTabText(2,f'Headers ({len(self.headers.active_rows())})'))
     def current_table(self):
         current=self.tabs.currentWidget(); return current if isinstance(current,KeyValueTable) else None
-    def _body_mode(self,mode): self.body_panel.setVisible(mode=='raw'); self.form.setVisible(mode=='x-www-form-urlencoded')
+    def choose_body_file(self):
+        from ui_editor_behavior import settings
+        config=settings();path,_=QFileDialog.getOpenFileName(self,'Request body file',config.working_directory)
+        if path:
+            root=Path(config.working_directory).resolve();selected=Path(path).resolve()
+            self.body_file.setText(str(selected.relative_to(root) if selected.is_relative_to(root) else selected))
+    def _body_mode(self,mode):
+        self.body_panel.setVisible(mode=='raw');self.form.setVisible(mode=='x-www-form-urlencoded');self.body_file_panel.setVisible(mode=='file')
     def collect(self):
-        return {'name':self.name.text().strip() or 'Untitled Request','method':self.method.currentText(),
+        return {**{key:self.data[key] for key in ('imported_query','imported_query_params') if key in self.data},
+            'name':self.name.text().strip() or 'Untitled Request','method':self.method.currentText(),
             'url':self.url.text().strip(),'params':self.params.active_rows(),'param_rows':self.params.all_rows(),
             'headers':self.headers.active_rows(),'header_rows':self.headers.all_rows(),
             'auth_type':self.auth_type.currentText(),'auth_value':self.auth_value.text(),
             'body_type':self.body_type.currentText(),'body':self.body.toPlainText(),
-            'form':self.form.active_rows(),'form_rows':self.form.all_rows()}
+            'body_file':self.body_file.text(),'http_schema':self.http_schema.text(),'general_overrides':self.general_overrides.isChecked(),'http_version':self.http_version.currentText(),
+            'form':self.form.active_rows(),'form_rows':self.form.all_rows(),
+            'http_verify':self.http_verify.isChecked(),'http_follow_redirects':self.http_follow_redirects.isChecked(),
+            'http_timeout':self.http_timeout.value(),'http_ca_file':self.http_ca_file.text().strip(),
+            'http_cert_file':self.http_cert_file.text().strip(),'http_key_file':self.http_key_file.text().strip()}
 
 
 class GrpcPage(BasePage):
@@ -256,10 +311,12 @@ class GrpcPage(BasePage):
         docs_row.addWidget(self.docs_content,1); docs_row.addStretch(); self.docs_scroll.setWidget(docs_outer)
         self.tabs.addTab(self.docs_scroll,'Docs'); self.tabs.setTabIcon(0,icon('docs'))
         self.message=CodeEditor(d['message']); self.tabs.addTab(self.add_editor(self.message),'Message')
+        self.message.setPlaceholderText('Compose message')
+        if USE_REQON_UI:self.message.presentation.mode='json'
         auth=QWidget(); auth_form=QFormLayout(auth); auth_form.setContentsMargins(24,24,24,24); auth_form.setVerticalSpacing(20)
-        self.auth_type=QComboBox(); self.auth_type.addItems(['No Auth','Bearer Token']); self.auth_type.setCurrentText(d.get('auth_type','No Auth'))
-        self.auth_value=QLineEdit(d.get('auth_value','')); self.auth_value.setPlaceholderText('Token or {{variable}}')
-        auth_form.addRow('Auth Type',self.auth_type); auth_form.addRow('Token',self.auth_value); self.tabs.addTab(auth,'Authorization')
+        self.auth_type=QComboBox(); self.auth_type.addItems(['No Auth','Bearer Token','Basic Auth','API Key']); self.auth_type.setCurrentText(d.get('auth_type','No Auth'))
+        self.auth_value=QLineEdit(d.get('auth_value','')); self.auth_value.setPlaceholderText('Token, username:password, header:value or {{variable}}')
+        auth_form.addRow('Auth Type',self.auth_type); auth_form.addRow('Value',self.auth_value); self.tabs.addTab(auth,'Authorization')
         self.metadata=KeyValueTable(d.get('metadata_rows',d['metadata'])); self.tabs.addTab(self.metadata,'Metadata')
         self.metadata.changed.connect(self.metadata_count); self.metadata_count()
         definition=QWidget(); definition_layout=QVBoxLayout(definition); definition_layout.setContentsMargins(24,24,24,24); definition_layout.setSpacing(16)
@@ -285,6 +342,7 @@ class GrpcPage(BasePage):
         self.bulk=tool('docs','Bulk edit metadata',self.metadata.bulk_edit,'Bulk Edit'); self.tabs.setCornerWidget(self.bulk); self.bulk.hide()
         self.service.textChanged.connect(self.update_docs); self.rpc_method.textChanged.connect(self.update_docs)
         self.variables_provider=lambda:{}
+        self.proxy_provider=lambda:None
         self.definition_directory=Path(QStandardPaths.writableLocation(QStandardPaths.StandardLocation.AppDataLocation))/'definitions'
         self._schema_key=None; self._discovery_key=None; self._inflight_key=None; self._methods=[]; self._generation=0; self._importing=False
         self._contract=None; self._contract_key=None; self._example_ticket=0; self._example_loading=False
@@ -375,7 +433,8 @@ class GrpcPage(BasePage):
         def resolve(text):
             return re.sub(r'\{\{\s*([^{}]+?)\s*\}\}',lambda m:str(variables.get(m.group(1),m.group(0))),text)
         server=resolve(self.server.text().strip())
-        data=self.collect(); metadata=grpc_metadata(data,variables)
+        data=self.runtime_data_provider() if hasattr(self,'runtime_data_provider') else self.collect()
+        data=dict(data,_proxy_config=self.proxy_provider()); metadata=grpc_metadata(data,variables)
         return server,TLSOptions.from_data(data,variables),resolve(self.descriptor_file.text().strip()),tuple(metadata)
 
     def schema_context(self):
@@ -492,6 +551,7 @@ class GrpcPage(BasePage):
 
     def collect(self):
         return {'kind':'grpc','name':self.name.text().strip() or 'Untitled gRPC Request',
+            'general_overrides':self.general_overrides.isChecked(),
             'server':self.server.text().strip(),'tls':self.tls.currentIndex()==1,
             'tls_ca_file':self.tls_ca_file.text().strip(),'tls_cert_file':self.tls_cert_file.text().strip(),'tls_key_file':self.tls_key_file.text().strip(),
             'tls_verify':self.tls_verify.isChecked(),'tls_server_name':self.tls_server_name.text().strip(),

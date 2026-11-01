@@ -15,9 +15,11 @@ from collection_store import CollectionStore
 from collection_actions import CollectionActions
 from ui_collections import CollectionPage, ExamplePage
 from autosave import Autosave
-from request_transport import prepare_http
+from request_transport import prepare_http,open_http,decode_http_content
 from code_snippets import generate_snippet
 from response_errors import failure_result
+from ui_brand import USE_REQON_UI,DISPLAY_NAME,VERSION,brand_icon,windows_identity
+from app_paths import workspace_database
 
 from PySide6.QtCore import Qt, QStandardPaths, QThread, Signal, Slot
 from PySide6.QtGui import QAction, QColor, QFont, QKeySequence, QSyntaxHighlighter, QTextCharFormat
@@ -31,14 +33,17 @@ DEFAULT = {'name': 'Untitled Request', 'method': 'GET', 'url': '', 'params': [],
            'headers': [], 'auth_type': 'No Auth', 'auth_value': '', 'body_type': 'none',
            'body': '', 'form': []}
 GRPC_DEFAULT = {'kind':'grpc', 'name':'Untitled gRPC Request', 'server':'', 'tls':False,
-                'service':'', 'rpc_method':'', 'message':'{}', 'metadata':[], 'descriptor_file':''}
+                'service':'', 'rpc_method':'', 'message':'', 'metadata':[], 'descriptor_file':''}
 
 
 class Store(CollectionStore):
     def __init__(self, directory=None):
-        root = Path(directory or QStandardPaths.writableLocation(QStandardPaths.StandardLocation.AppDataLocation))
-        root.mkdir(parents=True, exist_ok=True)
-        self.path = root / 'getman.sqlite3'
+        if USE_REQON_UI:
+            self.path = workspace_database(directory)
+        else:
+            root = Path(directory or QStandardPaths.writableLocation(QStandardPaths.StandardLocation.AppDataLocation))
+            root.mkdir(parents=True, exist_ok=True)
+            self.path = root / 'getman.sqlite3'
         self.db = sqlite3.connect(self.path)
         self.db.execute('PRAGMA foreign_keys=ON')
         self.db.executescript('''
@@ -118,9 +123,11 @@ def make_table(headers):
 
 class Worker(QThread):
     done = Signal(object)
-    def __init__(self, data, variables):
+    def __init__(self, data, variables, proxy_config=None,general_config=None,storage=None,cookies=None):
         super().__init__()
         self.data, self.variables = data, variables
+        self.proxy_config=proxy_config
+        self.general_config=general_config;self.storage=storage;self.cookies=cookies
         self.cancellation=Cancellation()
 
     def cancel(self):self.cancellation.cancel()
@@ -129,25 +136,39 @@ class Worker(QThread):
         t = time.monotonic()
         try:
             d, v = self.data, self.variables
+            if self.general_config:
+                from general_settings import effective_request
+                d=effective_request(d,self.general_config,self.storage)
             if d.get('kind') == 'grpc':
-                self.done.emit(invoke(d, v, expand,self.cancellation))
+                self.done.emit(invoke(dict(d,_proxy_config=self.proxy_config), v, expand,self.cancellation))
                 return
+            if self.general_config:
+                from http_runtime import send_http
+                self.done.emit(send_http(d,v,self.proxy_config,self.cookies,self.cancellation));return
             url,method,headers,body=prepare_http(d,v)
             req = urllib.request.Request(url, data=body, headers=headers, method=method)
-            try: response = urllib.request.urlopen(req, timeout=30)
+            try: response = open_http(req,d,v,self.proxy_config)
             except urllib.error.HTTPError as e: response = e
             with response:
-                content = response.read()
+                content = response.read(); wire_size=len(content)
+                content = decode_http_content(content,response.headers.get('Content-Encoding',''))
                 result = {'status': response.status, 'reason': response.reason, 'headers': dict(response.headers),
                           'body': content.decode(response.headers.get_content_charset() or 'utf-8', errors='replace'),
-                          'size': len(content), 'url': url, 'duration': round((time.monotonic()-t)*1000)}
+                          'size': wire_size, 'url': url, 'duration': round((time.monotonic()-t)*1000)}
             self.done.emit(result)
         except Exception as e:
             message='Request cancelled.' if self.cancellation.cancelled else rpc_error(e) if self.data.get('kind')=='grpc' else str(e)
-            self.done.emit(failure_result(e,self.data.get('kind','http'),round((time.monotonic()-t)*1000,2),message,self.cancellation.cancelled))
+            result=failure_result(e,self.data.get('kind','http'),round((time.monotonic()-t)*1000,2),message,self.cancellation.cancelled)
+            if USE_REQON_UI:
+                from ui_error_states import decorate_failure
+                result=decorate_failure(result,e)
+            self.done.emit(result)
 
 
-class MainWindow(Autosave, CollectionActions, QMainWindow):
+from general_controller import GeneralController
+
+
+class MainWindow(GeneralController, Autosave, CollectionActions, QMainWindow):
     def nativeEvent(self,event_type,message):
         controller=getattr(self,'_resize_controller',None)
         if controller and controller.native:
@@ -156,12 +177,17 @@ class MainWindow(Autosave, CollectionActions, QMainWindow):
         return super().nativeEvent(event_type,message)
 
     def __init__(self, store=None):
+        from ui_typography import load_fonts
+        if USE_REQON_UI:load_fonts()
         super().__init__()
         self.store = store or Store()
+        from proxy_support import ProxyPreferences
+        self.proxy_preferences=ProxyPreferences(self.store)
+        self.init_general_settings()
         self.workers = []
         self.console_entries = []
         self.init_autosave()
-        self.setWindowTitle('Getman — Local API Client')
+        self.setWindowTitle(DISPLAY_NAME+' — Local API Client')
         available = QApplication.primaryScreen().availableGeometry()
         self.resize(min(1370, available.width()-40), min(990, available.height()-40))
         build_shell(self)
@@ -169,15 +195,19 @@ class MainWindow(Autosave, CollectionActions, QMainWindow):
         self.make_menu(); self.menu_button.setMenu(self.file_menu); self.menuBar().hide()
         self.statusBar().hide()
         self.refresh_tree(); self.refresh_history(); self.refresh_environments(); self.restore_workspace()
+        self.general_settings_changed()
 
     def make_menu(self):
         file = self.menuBar().addMenu('&File')
         self.file_menu = file
         actions = [('New HTTP Request', self.new_request, 'Ctrl+N'), ('New gRPC Request', self.new_grpc_request, 'Ctrl+Shift+N'), ('New Collection', self.new_collection, ''),
+                   ('Import cURL / gRPCurl', self.show_import_dialog, 'Ctrl+Shift+I'),
                    ('Import Postman Collection', self.import_collection, 'Ctrl+O'), ('Export Collection', self.export_collection, ''),
+                   ('Export collections…', self.export_collections, 'Ctrl+Shift+E'),
                    ('Open local link', self.open_local_link, 'Ctrl+L'),
                    ('Open local draft', self.open_draft_dialog, ''),
                    ('Code snippet', self.show_code_snippet, ''), ('Copy as cURL / gRPCurl', self.copy_curl, ''), ('Quit', self.close, 'Ctrl+Q')]
+        actions.insert(-1,('Settings',self.show_settings,'Ctrl+,'))
         for label, callback, shortcut in actions:
             action = QAction(label, self); action.triggered.connect(lambda checked=False,callback=callback:callback())
             if shortcut: action.setShortcut(QKeySequence(shortcut))
@@ -191,6 +221,9 @@ class MainWindow(Autosave, CollectionActions, QMainWindow):
         self.addAction(save)
 
     def select_nav(self, name):
+        if USE_REQON_UI:
+            if name=='Environments':self.environments.navigate();return
+            self.collection_searchbar.setVisible(name=='Collections')
         if name == 'Environments':
             self.manage_environment()
             self.rail_buttons['Collections' if self.side_tabs.currentWidget() is self.tree else 'History'].setChecked(True)
@@ -203,24 +236,27 @@ class MainWindow(Autosave, CollectionActions, QMainWindow):
         if isinstance(page,GrpcPage):page.tabs.setCurrentIndex(0)
 
     def show_console(self):
-        dialog=QDialog(self); dialog.setWindowTitle('Getman Console'); dialog.resize(820,420)
+        dialog=QDialog(self); dialog.setWindowTitle(DISPLAY_NAME+' Console'); dialog.resize(820,420)
         layout=QVBoxLayout(dialog); output=QPlainTextEdit(); output.setReadOnly(True)
         output.setPlainText('\n'.join(self.console_entries) or 'Requests sent in this session will appear here.')
         layout.addWidget(output); dialog.exec()
 
-    def configure_tab(self, page):
-        page._saved=page.collect()
+    def configure_tab(self, page, draft_id=None):
+        self.configure_general_page(page)
+        # A replacement tab may have a new protocol. Compare with the actual
+        # stored request, not a UI snapshot that has never been written.
+        page._saved=json.loads(self.store.entity('request',page.request_id)['data']) if page.request_id else page.collect()
         index=self.workbench.indexOf(page)
-        self.workbench.setTabIcon(index,icon('grpc' if isinstance(page,GrpcPage) else 'http','#7ca8d9' if isinstance(page,GrpcPage) else '#79cdb4'))
+        self.set_request_tab_icon(page)
         close=tool('close','Close request',lambda:self.close_request_tab(self.workbench.indexOf(page)))
         close.setFixedSize(18,18)
         self.workbench.tabBar().setTabButton(index,QTabBar.ButtonPosition.RightSide,close)
-        self.attach_autosave(page)
+        self.attach_autosave(page,draft_id)
 
     def confirm_close(self,page):
         if page.busy:
             self.set_save_status(page,'Request in progress'); return False
-        return self.flush_page(page)
+        return self.close_general_page(page)
 
     def close_request_tab(self,index):
         page=self.workbench.widget(index)
@@ -230,7 +266,9 @@ class MainWindow(Autosave, CollectionActions, QMainWindow):
         self.save_workspace()
 
     def closeEvent(self,event):
-        if not self.flush_all():
+        settings=getattr(self,'settings_overlay',None)
+        if settings and not settings.save_pending():event.ignore();return
+        if not all(self.close_general_page(self.workbench.widget(i)) for i in range(self.workbench.count())) or not self.save_workspace():
             event.ignore(); self.show(); return
         if self.workers or Job.running:
             for worker in self.workers:worker.cancel()
@@ -243,19 +281,20 @@ class MainWindow(Autosave, CollectionActions, QMainWindow):
         page = self.workbench.currentWidget()
         return page if isinstance(page, (RequestPage, GrpcPage)) else None
 
-    def new_request(self, data=None, request_id=None, collection_id=None, folder_id=None):
+    def new_request(self, data=None, request_id=None, collection_id=None, folder_id=None, draft_id=None):
         page = RequestPage(data, request_id)
         page.collection_id, page.folder_id = collection_id, folder_id
         page.send_requested.connect(self.send_request); page.save_requested.connect(self.save_request)
         page.switch_requested.connect(self.switch_request_type)
         idx = self.workbench.addTab(page, page.data['name']); self.workbench.setCurrentIndex(idx)
-        self.configure_tab(page)
+        self.configure_tab(page,draft_id)
         page.name.textChanged.connect(lambda name: self.workbench.setTabText(self.workbench.indexOf(page), name or 'Untitled Request'))
         return page
 
-    def new_grpc_request(self, data=None, request_id=None, collection_id=None, folder_id=None):
+    def new_grpc_request(self, data=None, request_id=None, collection_id=None, folder_id=None, draft_id=None):
         page = GrpcPage(data, request_id)
         page.variables_provider=lambda:self.variables(page.collection_id)
+        page.proxy_provider=lambda:self.proxy_preferences.config
         page.definition_directory=self.store.path.parent/'definitions'
         self.env_combo.currentIndexChanged.connect(page.source_changed)
         page.generate_collection.connect(self.generate_grpc_collection)
@@ -263,7 +302,7 @@ class MainWindow(Autosave, CollectionActions, QMainWindow):
         page.send_requested.connect(self.send_request); page.save_requested.connect(self.save_request)
         page.switch_requested.connect(self.switch_request_type)
         idx = self.workbench.addTab(page, page.data['name']); self.workbench.setCurrentIndex(idx)
-        self.configure_tab(page)
+        self.configure_tab(page,draft_id)
         page.name.textChanged.connect(lambda name: self.workbench.setTabText(self.workbench.indexOf(page), name or 'Untitled gRPC Request'))
         return page
 
@@ -276,7 +315,7 @@ class MainWindow(Autosave, CollectionActions, QMainWindow):
         for service,method in methods:
             if service not in folders:
                 folders[service]=self.store.insert('folders',{'collection_id':cid,'name':service})
-            request=dict(data,name=method,service=service,rpc_method=method,message='{}')
+            request=dict(data,name=method,service=service,rpc_method=method,message='')
             self.store.save_request(request,collection_id=cid,folder_id=folders[service])
         self.refresh_tree(); self.select_nav('Collections')
 
@@ -292,25 +331,35 @@ class MainWindow(Autosave, CollectionActions, QMainWindow):
             address=old.get('server','')
             if address.startswith(('grpc://','grpcs://','http://','https://')):
                 address=('https://' if old.get('tls') else 'http://')+address.split('://',1)[1]
+            elif address:address=('https://' if old.get('tls') else 'http://')+address
             data = dict(DEFAULT, name=name, url=address,
                         headers=[list(row) for row in old.get('metadata',[])],
-                        body_type='raw', body=old.get('message',''))
+                        header_rows=[list(row) for row in old.get('metadata_rows',old.get('metadata',[]))],
+                        auth_type=old.get('auth_type','No Auth'),auth_value=old.get('auth_value',''),
+                        body_type='raw', body=old.get('message',''),http_verify=old.get('tls_verify',False),
+                        http_ca_file=old.get('tls_ca_file',''),http_cert_file=old.get('tls_cert_file',''),http_key_file=old.get('tls_key_file',''))
         else:
             data = dict(GRPC_DEFAULT, name=name, server=old.get('url',''),
                         metadata=[list(row[:2]) for row in old.get('headers',[])],
-                        message=old.get('body','') or '{}')
+                        metadata_rows=[list(row) for row in old.get('header_rows',old.get('headers',[]))],
+                        message=old.get('body',''),tls_verify=old.get('http_verify',True),
+                        tls_ca_file=old.get('http_ca_file',''),tls_cert_file=old.get('http_cert_file',''),tls_key_file=old.get('http_key_file',''))
+            data.update(auth_type=old.get('auth_type','No Auth'),auth_value=old.get('auth_value',''))
         self.workbench.removeTab(old_index)
         page.deleteLater()
-        new_page = self.new_request(data) if kind == 'http' else self.new_grpc_request(data)
+        create=self.new_request if kind=='http' else self.new_grpc_request
+        new_page=create(data,page.request_id,page.collection_id,page.folder_id,page._draft_id)
         self.workbench.tabBar().moveTab(self.workbench.indexOf(new_page), old_index)
         self.workbench.setCurrentWidget(new_page)
+        self.refresh_tree();self.save_workspace()
 
     def save_request(self, page):
+        if USE_REQON_UI and getattr(page,'is_environment_page',False):return page.flush()
         if isinstance(page, ExamplePage): return self.save_example(page)
         if isinstance(page, CollectionPage): return
-        data = page.collect()
-        kind = data.get('kind', 'http')
-        if not page.collection_id:
+        if not self.flush_page(page,force=True):return
+        collection_id=page.collection_id
+        if not collection_id:
             collections = self.store.all('SELECT id,name FROM collections ORDER BY sort_order,id')
             names = ['+ New collection'] + [f'{name}  [{cid}]' for cid,name in collections]
             chosen, ok = QInputDialog.getItem(self, 'Save request', 'Collection:', names, 0, False)
@@ -318,31 +367,36 @@ class MainWindow(Autosave, CollectionActions, QMainWindow):
             if chosen == names[0]:
                 name, ok = QInputDialog.getText(self, 'New collection', 'Collection name:')
                 if not ok or not name.strip(): return
-                page.collection_id = self.store.insert('collections', {'name':name.strip(), 'kind':kind})
-            else: page.collection_id = collections[names.index(chosen)-1][0]
-        existing_kind = self.store.all('SELECT kind FROM collections WHERE id=?', (page.collection_id,))
+                collection_id = self.store.insert('collections', {'name':name.strip(), 'kind':page.kind})
+            else: collection_id = collections[names.index(chosen)-1][0]
+        existing_kind = self.store.all('SELECT kind FROM collections WHERE id=?', (collection_id,))
         if not existing_kind:
             QMessageBox.warning(self, 'Collection missing', 'Select a collection for this request')
             page.collection_id = None
             page.folder_id = None; page.request_id = None
             return
-        page.request_id = self.store.save_request(data, page.request_id, page.collection_id, page.folder_id)
-        page._saved=page.collect()
-        self.flush_page(page); self.save_workspace()
+        page.collection_id=collection_id
+        # Read widgets after the destination dialog, including any completed
+        # asynchronous example generation, and acknowledge only committed data.
+        if not self.flush_page(page,force=True):return
+        self.save_workspace()
         self.refresh_tree(); self.statusBar().showMessage('Request saved locally', 4000)
 
     def variables(self, collection_id=None):
-        result = {}
+        result = self.environments.values(None) if USE_REQON_UI else {}
         if collection_id:
             collection = self.store.all('SELECT variables FROM collections WHERE id=?', (collection_id,))
             if collection: result.update(json.loads(collection[0][0]))
         id = self.env_combo.currentData()
         if not id: return result
+        if USE_REQON_UI:
+            result.update(self.environments.values(id));return result
         row = self.store.all('SELECT variables FROM environments WHERE id=?', (id,))
         if row: result.update(json.loads(row[0][0]))
         return result
 
     def refresh_environments(self):
+        if USE_REQON_UI:return self.environments.refresh()
         selected = self.env_combo.currentData()
         self.env_combo.clear(); self.env_combo.addItem('No Environment', None)
         for id, name in self.store.all('SELECT id,name FROM environments ORDER BY name'): self.env_combo.addItem(name, id)
@@ -350,6 +404,7 @@ class MainWindow(Autosave, CollectionActions, QMainWindow):
         if index >= 0: self.env_combo.setCurrentIndex(index)
 
     def manage_environment(self):
+        if USE_REQON_UI:return self.environments.navigate()
         names = ['+ New environment'] + [n for _,n in self.store.all('SELECT id,name FROM environments ORDER BY name')]
         chosen, ok = QInputDialog.getItem(self, 'Environments', 'Select environment to edit:', names, 0, False)
         if not ok: return
@@ -375,9 +430,8 @@ class MainWindow(Autosave, CollectionActions, QMainWindow):
     def send_request(self, page):
         if not page:return
         if page.busy:
-            if page.kind=='grpc':
-                for worker in self.workers:
-                    if worker.page is page:worker.cancel()
+            for worker in self.workers:
+                if worker.page is page:worker.cancel()
             return
         if not self.flush_page(page):return
         data = page.collect()
@@ -385,7 +439,7 @@ class MainWindow(Autosave, CollectionActions, QMainWindow):
             page.status.setText('Enter a server URL'); return
         page.status.setText('Sending…')
         page.set_busy(True)
-        worker = Worker(data, self.variables(page.collection_id)); self.workers.append(worker)
+        worker = Worker(data, self.variables(page.collection_id),self.proxy_preferences.config,self.general_preferences.config,self.store.path.parent,self.cookie_store); self.workers.append(worker)
         worker.page=page
         worker.done.connect(self.on_request_result,Qt.ConnectionType.QueuedConnection)
         worker.finished.connect(self.on_worker_finished,Qt.ConnectionType.QueuedConnection)
@@ -424,9 +478,32 @@ class MainWindow(Autosave, CollectionActions, QMainWindow):
         page = self.current_page()
         if not page: return
         try:
-            label,command=generate_snippet(page.collect(),self.variables(page.collection_id))
+            label,command=generate_snippet(page.runtime_data_provider(),self.variables(page.collection_id))
             QApplication.clipboard().setText(command); self.statusBar().showMessage(label+' copied',4000)
         except ValueError:self.show_code_snippet()
+
+    def show_import_dialog(self):
+        from ui_command_import import CommandImportDialog
+        dialog=CommandImportDialog(self)
+        if dialog.exec() and dialog.imported:
+            self.import_command_request(dialog.imported)
+
+    def show_settings(self):
+        from ui_settings import SettingsOverlay
+        if not hasattr(self,'settings_overlay'):self.settings_overlay=SettingsOverlay(self)
+        self.settings_overlay.present()
+
+    def proxy_settings_changed(self):
+        for index in range(self.workbench.count()):
+            page=self.workbench.widget(index)
+            if isinstance(page,GrpcPage):page.source_changed()
+
+    def import_command_request(self,imported):
+        data=dict(imported.data,general_overrides=True)
+        page=(self.new_grpc_request if data.get('kind')=='grpc' else self.new_request)(data)
+        page.tabs.setCurrentIndex(1 if data.get('kind')=='grpc' else 3 if data.get('body_type')!='none' else 0)
+        self.flush_page(page);self.save_workspace()
+        return page
 
     def show_code_snippet(self):
         sidebar=self.workspace_splitter.widget(0)
@@ -448,15 +525,25 @@ class MainWindow(Autosave, CollectionActions, QMainWindow):
 
 def main():
     import argparse
-    parser = argparse.ArgumentParser(description='Getman local native API client')
+    parser = argparse.ArgumentParser(description=DISPLAY_NAME+' local native API client')
     parser.add_argument('--data-dir', type=Path, help='Use a separate local workspace directory')
     options, qt_arguments = parser.parse_known_args()
+    windows_identity()
     app = QApplication([sys.argv[0], *qt_arguments])
-    app.setApplicationName('Getman'); app.setOrganizationName('Getman')
-    app.setApplicationVersion('0.11.0')
+    from ui_typography import load_fonts
+    if USE_REQON_UI:load_fonts()
+    app.setApplicationName(DISPLAY_NAME); app.setOrganizationName(DISPLAY_NAME)
+    app.setApplicationVersion(VERSION)
+    if USE_REQON_UI:
+        app.setApplicationDisplayName(DISPLAY_NAME);app.setWindowIcon(brand_icon(True))
     app.setStyle('Fusion'); app.setStyleSheet(STYLE)
-    window = MainWindow(Store(options.data_dir)); window.show()
+    try:
+        store = Store(options.data_dir)
+    except (OSError, sqlite3.Error) as error:
+        QMessageBox.critical(None, DISPLAY_NAME, 'Could not open the local workspace.\n\n'+str(error))
+        return 1
+    window = MainWindow(store); window.show()
     sys.exit(app.exec())
 
 
-if __name__ == '__main__': main()
+if __name__ == '__main__': sys.exit(main())

@@ -11,7 +11,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 WORKDIR /src
 COPY requirements.txt .
-RUN python3 -m venv /opt/getman-build-env && /opt/getman-build-env/bin/pip install -r requirements.txt
+RUN python3 -m venv /opt/reqon-build-env && /opt/reqon-build-env/bin/pip install -r requirements.txt
 COPY . .
-RUN mkdir -p build/linux && ln -s /opt/getman-build-env build/linux/venv
+RUN mkdir -p build/linux && ln -s /opt/reqon-build-env build/linux/venv
 CMD ["bash", "packaging/verify-astra-build.sh"]

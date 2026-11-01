@@ -7,6 +7,7 @@ from ui_components import KeyValueTable
 from ui_pages import RequestPage, GrpcPage, Job
 from ui_collections import CollectionPage, ExamplePage, ROLE
 from collection_store import TABLES
+from ui_brand import USE_REQON_UI,stylesheet
 
 
 class Autosave:
@@ -17,18 +18,21 @@ class Autosave:
         self._idle_close_timer=QTimer(self); self._idle_close_timer.setInterval(100)
         self._idle_close_timer.timeout.connect(self.close_when_idle)
 
-    def attach_autosave(self,page):
+    def attach_autosave(self,page,draft_id=None):
         if isinstance(page,CollectionPage):return
-        page._draft_id=uuid.uuid4().hex
+        page._draft_id=draft_id or uuid.uuid4().hex
         page._autosave_timer=QTimer(page); page._autosave_timer.setSingleShot(True); page._autosave_timer.setInterval(300)
         page._autosave_timer.timeout.connect(lambda:self.flush_page(page))
         if isinstance(page,RequestPage):
             fields=[page.name,page.url,page.method,page.auth_type,page.auth_value,page.body_type,page.body,
-                    page.params,page.headers,page.form]
+                    page.params,page.headers,page.form,page.http_verify,page.http_follow_redirects,page.http_timeout,
+                    page.http_ca_file,page.http_cert_file,page.http_key_file]
+            fields.extend([page.general_overrides,page.http_version,page.http_schema,page.body_file])
         elif isinstance(page,GrpcPage):
             fields=[page.name,page.server,page.service,page.rpc_method,page.tls,page.auth_type,page.auth_value,
                     page.message,page.metadata,page.descriptor_file,page.tls_ca_file,page.tls_cert_file,page.tls_key_file,
                     page.tls_verify,page.tls_server_name,page.grpc_emit_defaults,page.grpc_max_response_mb,page.grpc_timeout_ms]
+            fields.append(page.general_overrides)
         else:
             fields=[page.name,page.request,page.response,page.status,page.reason,page.headers,page.trailers]
         for field in fields:
@@ -38,16 +42,22 @@ class Autosave:
             elif hasattr(field,'toggled'):signal=field.toggled
             else:signal=field.valueChanged
             signal.connect(lambda *_,page=page:self.queue_autosave(page))
-        self.flush_page(page)
+        self.flush_page(page,force=True)
 
     def set_save_status(self,page,text,error=False):
+        if USE_REQON_UI:
+            page._presentation_dirty=error or text=='Saving…'
+            self.workbench.tabBar().schedule()
         label=getattr(page,'save_state',None)
         if label:
-            label.setText(text); label.setStyleSheet('color:#ef9a9a;font-size:11px;' if error else 'color:#969696;font-size:11px;')
+            label.setText(text); label.setStyleSheet(stylesheet('color:#ef9a9a;font-size:11px;' if error else 'color:#969696;font-size:11px;'))
 
     def queue_autosave(self,page):
         if self.workbench.indexOf(page)<0:return
+        page._preview_pinned=True
         self.snippet_panel.schedule()
+        if not self.general_preferences.config.autosave:
+            self.set_save_status(page,'Unsaved changes');page._presentation_dirty=True;self.workbench.tabBar().schedule();self.update_tree_name(page);return
         self.set_save_status(page,'Saving…'); page._autosave_timer.start()
         self.update_tree_name(page)
         if not self._restoring_workspace:self._session_timer.start()
@@ -60,9 +70,14 @@ class Autosave:
         if item:
             name=page.name.text().strip() or ('Untitled gRPC Request' if isinstance(page,GrpcPage) else 'Untitled Request' if isinstance(page,RequestPage) else 'Example')
             self.tree.blockSignals(True); item.setText(0,name); item.setToolTip(0,name); self.tree.blockSignals(False)
+            if USE_REQON_UI and isinstance(page,(RequestPage,GrpcPage)):
+                from ui_collections import METHOD
+                item.setData(0,METHOD,'gRPC' if isinstance(page,GrpcPage) else page.method.currentText())
 
-    def flush_page(self,page):
+    def flush_page(self,page,force=False):
+        if USE_REQON_UI and getattr(page,'is_environment_page',False):return page.flush()
         if isinstance(page,CollectionPage):return True
+        if not force and not self.general_preferences.config.autosave:return True
         timer=getattr(page,'_autosave_timer',None)
         if timer:timer.stop()
         try:
@@ -78,7 +93,7 @@ class Autosave:
                     if page.collection_id and not self.store.all('SELECT id FROM collections WHERE id=?',(page.collection_id,)):
                         page.collection_id=None; page.folder_id=None; page.request_id=None
                     if page.collection_id:
-                        if data!=page._saved or not page.request_id:
+                        if force or data!=page._saved or not page.request_id:
                             page.request_id=self.store.save_request(data,page.request_id,page.collection_id,page.folder_id)
                         self.store.db.execute('DELETE FROM local_drafts WHERE uid=?',(draft_id,))
                     else:self.write_draft(draft_id,data.get('kind','http'),data['name'],data)
@@ -112,7 +127,7 @@ class Autosave:
             self.tree.itemDelegate().commitData.emit(editor)
         success=True
         for index in range(self.workbench.count()):
-            if not self.flush_page(self.workbench.widget(index)):success=False
+            if not self.flush_page(self.workbench.widget(index),force=True):success=False
         return self.save_workspace() and success
 
     def save_workspace(self,*_):
@@ -121,6 +136,8 @@ class Autosave:
             entries=[]
             for index in range(self.workbench.count()):
                 page=self.workbench.widget(index)
+                if USE_REQON_UI and getattr(page,'is_environment_page',False):
+                    entries.append({'kind':'environment','uid':page.uid});continue
                 if getattr(page,'request_id',None):key=('request',page.request_id)
                 else:key=getattr(page,'entity_key',None)
                 if key and key[1]:
@@ -138,7 +155,10 @@ class Autosave:
         data=json.loads(rows[0][0]) if rows else {}
         for entry in data.get('tabs',[]):
             kind=entry.get('kind'); uid=entry.get('uid')
-            if kind=='draft':self.open_draft(uid)
+            if USE_REQON_UI and kind=='environment':
+                id=self.environments.data.from_uid(uid)
+                if id is not False:self.environments.open(id)
+            elif kind=='draft':self.open_draft(uid)
             elif kind in TABLES:
                 rows=self.store.all(f'SELECT id FROM {TABLES[kind]} WHERE uid=?',(uid,))
                 if rows:

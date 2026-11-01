@@ -1,0 +1,105 @@
+{
+  "product": "Reqon",
+  "version": "2.0",
+  "source": "user-approved screenshot",
+  "items": [
+    {
+      "id": "response-ready-to-send",
+      "description": "Response panel before a request has been executed",
+      "dark": "dark/response-ready-to-send.png",
+      "light": "light/response-ready-to-send.png",
+      "format": "PNG with alpha, extracted from approved reference image"
+    },
+    {
+      "id": "request-create-new",
+      "description": "New request creation / no request selected",
+      "dark": "dark/request-create-new.png",
+      "light": "light/request-create-new.png",
+      "format": "PNG with alpha, extracted from approved reference image"
+    },
+    {
+      "id": "history-no-activity",
+      "description": "No recent request activity",
+      "dark": "dark/history-no-activity.png",
+      "light": "light/history-no-activity.png",
+      "format": "PNG with alpha, extracted from approved reference image"
+    },
+    {
+      "id": "response-no-response",
+      "description": "Request has no response yet",
+      "dark": "dark/response-no-response.png",
+      "light": "light/response-no-response.png",
+      "format": "PNG with alpha, extracted from approved reference image"
+    },
+    {
+      "id": "error-service-unavailable",
+      "description": "Server unavailable / connection refused",
+      "dark": "dark/error-service-unavailable.png",
+      "light": "light/error-service-unavailable.png",
+      "format": "PNG with alpha, extracted from approved reference image"
+    },
+    {
+      "id": "error-no-connection",
+      "description": "Network is offline or connection unavailable",
+      "dark": "dark/error-no-connection.png",
+      "light": "light/error-no-connection.png",
+      "format": "PNG with alpha, extracted from approved reference image"
+    },
+    {
+      "id": "error-dns-resolution",
+      "description": "Hostname DNS lookup failed",
+      "dark": "dark/error-dns-resolution.png",
+      "light": "light/error-dns-resolution.png",
+      "format": "PNG with alpha, extracted from approved reference image"
+    },
+    {
+      "id": "error-tls-handshake",
+      "description": "TLS handshake or certificate failure",
+      "dark": "dark/error-tls-handshake.png",
+      "light": "light/error-tls-handshake.png",
+      "format": "PNG with alpha, extracted from approved reference image"
+    },
+    {
+      "id": "error-request-timeout",
+      "description": "Request exceeded configured timeout",
+      "dark": "dark/error-request-timeout.png",
+      "light": "light/error-request-timeout.png",
+      "format": "PNG with alpha, extracted from approved reference image"
+    },
+    {
+      "id": "collections-empty",
+      "description": "No collections in workspace",
+      "dark": "dark/collections-empty.png",
+      "light": "light/collections-empty.png",
+      "format": "PNG with alpha, extracted from approved reference image"
+    },
+    {
+      "id": "search-no-results",
+      "description": "Search returned no matches",
+      "dark": "dark/search-no-results.png",
+      "light": "light/search-no-results.png",
+      "format": "PNG with alpha, extracted from approved reference image"
+    },
+    {
+      "id": "view-no-data",
+      "description": "Current panel has no data",
+      "dark": "dark/view-no-data.png",
+      "light": "light/view-no-data.png",
+      "format": "PNG with alpha, extracted from approved reference image"
+    },
+    {
+      "id": "folder-empty",
+      "description": "Folder contains no requests",
+      "dark": "dark/folder-empty.png",
+      "light": "light/folder-empty.png",
+      "format": "PNG with alpha, extracted from approved reference image"
+    },
+    {
+      "id": "request-completed",
+      "description": "Request completed successfully",
+      "dark": "dark/request-completed.png",
+      "light": "light/request-completed.png",
+      "format": "PNG with alpha, extracted from approved reference image"
+    }
+  ]
+}

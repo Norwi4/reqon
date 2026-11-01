@@ -7,6 +7,7 @@ from ui_components import icon,tool,Select as QComboBox
 from ui_collections import CollectionTree
 from ui_snippets import CodeSnippetPanel
 from ui_window import WindowResize
+from ui_brand import USE_REQON_UI,DISPLAY_NAME,TAB_HEIGHT,brand_icon,stylesheet
 
 
 class TitleBar(QFrame):
@@ -38,12 +39,18 @@ class WindowCorners(QObject):
 def build_shell(window):
     window.setWindowFlags(Qt.WindowType.Window | Qt.WindowType.FramelessWindowHint)
     window._corners=WindowCorners(window)
-    window.setWindowIcon(icon('grpc','#ff6c37',32)); window.setMinimumSize(960,640)
+    window.setWindowIcon(brand_icon(True) if USE_REQON_UI else icon('grpc','#ff6c37',32)); window.setMinimumSize(960,640)
     window._resize_controller=WindowResize(window)
     center=QWidget(); center.setObjectName('shell'); window.setCentralWidget(center)
     outer=QVBoxLayout(center); outer.setContentsMargins(1,1,1,1); outer.setSpacing(0)
     titlebar=TitleBar(window); window.titlebar=titlebar
     top=QHBoxLayout(titlebar); top.setContentsMargins(8,0,0,0); top.setSpacing(8)
+    if USE_REQON_UI:
+        window.brand_home=QToolButton();window.brand_home.setObjectName('brandHome')
+        window.brand_home.setIcon(brand_icon());window.brand_home.setIconSize(QSize(24,24));window.brand_home.setFixedSize(36,36)
+        window.brand_home.setToolTip('Reqon — Home');window.brand_home.setAccessibleName('Reqon — Home')
+        window.brand_home.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+        window.brand_home.clicked.connect(lambda:window.select_nav('Collections'));top.addWidget(window.brand_home)
     window.menu_button=tool('menu','Application menu'); window.menu_button.setFixedSize(28,30)
     window.menu_button.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup); top.addWidget(window.menu_button)
     back=tool('back','Previous request',lambda:window.workbench.setCurrentIndex(max(0,window.workbench.currentIndex()-1)))
@@ -56,12 +63,16 @@ def build_shell(window):
     workspace_menu.addAction(icon('folder'),'Open local data folder',lambda:QDesktopServices.openUrl(QUrl.fromLocalFile(str(window.store.path.parent))))
     workspaces.setMenu(workspace_menu); top.addWidget(workspaces)
     top.addStretch(1)
-    window.global_search=QLineEdit(); window.global_search.setObjectName('search'); window.global_search.setPlaceholderText('Search Getman'); window.global_search.setFixedSize(240,32)
+    window.global_search=QLineEdit(); window.global_search.setObjectName('search'); window.global_search.setPlaceholderText('Search '+DISPLAY_NAME); window.global_search.setFixedSize(240,32)
     window.global_search.addAction(icon('search'),QLineEdit.ActionPosition.LeadingPosition)
-    window.global_search.textChanged.connect(lambda text:window.search.setText(text)); top.addWidget(window.global_search)
+    if USE_REQON_UI:
+        window.global_search.setMinimumWidth(150);window.global_search.setMaximumWidth(280)
+        window.global_search.setSizePolicy(QSizePolicy.Policy.Expanding,QSizePolicy.Policy.Fixed)
+    if not USE_REQON_UI:window.global_search.textChanged.connect(lambda text:window.search.setText(text))
+    top.addWidget(window.global_search)
     top.addStretch(1)
     local=QLabel('Local workspace'); local.setObjectName('localBadge'); top.addWidget(local)
-    top.addWidget(tool('settings','Manage environments',window.manage_environment)); top.addSpacing(12)
+    window.settings_button=tool('settings','Settings',window.show_settings);top.addWidget(window.settings_button);top.addSpacing(12)
     for image,tip,fn in [('minimize','Minimize',window.showMinimized),('maximize','Maximize / Restore',titlebar.toggle_maximize),('close','Close',window.close)]:
         button=tool(image,tip,fn); button.setFixedSize(46,46)
         if image=='close':button.setObjectName('windowClose')
@@ -71,15 +82,15 @@ def build_shell(window):
     splitter=QSplitter(); splitter.setHandleWidth(1); splitter.setChildrenCollapsible(False); window.workspace_splitter=splitter
     left=QWidget(); left.setObjectName('sidebar'); left.setMinimumWidth(290)
     left_layout=QVBoxLayout(left); left_layout.setContentsMargins(0,0,0,0); left_layout.setSpacing(0)
-    workspace_head=QFrame(); workspace_head.setObjectName('workspaceHead'); workspace_head.setFixedHeight(40)
+    workspace_head=QFrame(); workspace_head.setObjectName('workspaceHead'); workspace_head.setFixedHeight(TAB_HEIGHT if USE_REQON_UI else 40)
     head=QHBoxLayout(workspace_head); head.setContentsMargins(14,0,8,0); head.setSpacing(4)
-    head.addWidget(tool('workspace','Local workspace')); workspace_name=QLabel('My Workspace'); workspace_name.setStyleSheet('font-weight:600'); head.addWidget(workspace_name); head.addStretch()
+    head.addWidget(tool('workspace','Local workspace')); workspace_name=QLabel('My Workspace'); workspace_name.setStyleSheet(stylesheet('font-weight:600')); head.addWidget(workspace_name); head.addStretch()
     window.new_menu=QMenu(window)
     window.new_menu.addAction(icon('http','#79cdb4'),'HTTP request',lambda:window.new_request())
     window.new_menu.addAction(icon('grpc','#7ca8d9'),'gRPC request',lambda:window.new_grpc_request())
     window.new_menu.addSeparator(); window.new_menu.addAction(icon('collection'),'Collection',window.new_collection)
     new=QPushButton('New'); new.setObjectName('smallButton'); new.clicked.connect(lambda:window.new_menu.exec(new.mapToGlobal(new.rect().bottomLeft()))); head.addWidget(new)
-    imp=QPushButton('Import'); imp.setObjectName('smallButton'); imp.clicked.connect(window.import_collection); head.addWidget(imp)
+    imp=QPushButton('Import'); imp.setObjectName('smallButton'); imp.clicked.connect(lambda:window.environments.import_file() if USE_REQON_UI and window.side_tabs.currentWidget() is window.environments.sidebar else window.show_import_dialog()); head.addWidget(imp)
     left_layout.addWidget(workspace_head)
     left_content=QHBoxLayout(); left_content.setContentsMargins(0,0,0,0); left_content.setSpacing(0)
     rail=QFrame(); rail.setObjectName('rail'); rail.setFixedWidth(76)
@@ -95,7 +106,15 @@ def build_shell(window):
     searchbar.addWidget(tool('plus','Create collection',window.new_collection))
     window.search=QLineEdit(); window.search.setObjectName('search'); window.search.setPlaceholderText('Search collections'); window.search.setFixedHeight(26)
     window.search.addAction(icon('search',size=14),QLineEdit.ActionPosition.LeadingPosition); window.search.textChanged.connect(window.filter_tree)
-    searchbar.addWidget(window.search,1); sidebar_layout.addLayout(searchbar)
+    searchbar.addWidget(window.search,1)
+    export=tool('download','Export collections',window.export_collections);export.setFixedSize(30,30);export.setAccessibleName('Export collections');searchbar.addWidget(export)
+    if USE_REQON_UI:
+        collapse=tool('collapse','Collapse all collections',lambda:(window.search.clear(),window.tree.collapseAll()))
+        collapse.setFixedSize(30,30);collapse.setAccessibleName('Collapse all collections');searchbar.addWidget(collapse)
+    if USE_REQON_UI:
+        window.collection_searchbar=QWidget();window.collection_searchbar.setLayout(searchbar);sidebar_layout.addWidget(window.collection_searchbar)
+        sidebar_layout.setContentsMargins(0,0,0,0);searchbar.setContentsMargins(8,8,8,0)
+    else:sidebar_layout.addLayout(searchbar)
     window.side_tabs=QTabWidget(); window.side_tabs.tabBar().hide()
     window.tree=CollectionTree()
     window.tree.setUniformRowHeights(True); window.tree.itemClicked.connect(window.open_item)
@@ -104,13 +123,25 @@ def build_shell(window):
     window.side_tabs.addTab(window.tree,'Collections'); window.side_tabs.addTab(window.history,'History'); sidebar_layout.addWidget(window.side_tabs)
     left_content.addWidget(sidebar,1); left_layout.addLayout(left_content,1); splitter.addWidget(left)
     window.workbench=QTabWidget(); window.workbench.setObjectName('workbench'); window.workbench.setDocumentMode(True)
+    if USE_REQON_UI:
+        from ui_windows import RequestTabs,TabCorner
+        window.workbench.setTabBar(RequestTabs(window.workbench))
     window.workbench.setMovable(True); window.workbench.setTabsClosable(True)
     window.workbench.tabCloseRequested.connect(window.close_request_tab)
     window.workbench.tabBar().setElideMode(Qt.TextElideMode.ElideRight); window.workbench.tabBar().setExpanding(False)
     window.workbench.tabBar().setDrawBase(False)
-    corner=QWidget(); corner.setFixedHeight(40); corner_layout=QHBoxLayout(corner); corner_layout.setContentsMargins(4,0,10,0); corner_layout.setSpacing(6)
-    plus=tool('plus','New request'); plus.setMenu(window.new_menu); plus.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup); corner_layout.addWidget(plus)
-    window.env_combo=QComboBox(); window.env_combo.setFixedWidth(164); window.env_combo.setStyleSheet('border:0;background:#212121;'); window.env_combo.addItem('No environment',None)
+    corner=TabCorner() if USE_REQON_UI else QWidget()
+    corner.setFixedHeight(TAB_HEIGHT if USE_REQON_UI else 40); corner_layout=QHBoxLayout(corner); corner_layout.setContentsMargins(4,0,10,0); corner_layout.setSpacing(6)
+    if USE_REQON_UI:
+        window.workbench.tabBar().install_add_button(window.new_request,window.new_grpc_request)
+        window.tab_plus=window.workbench.tabBar().add_button
+    else:
+        plus=tool('plus','New request'); plus.setMenu(window.new_menu); plus.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup); corner_layout.addWidget(plus)
+    if USE_REQON_UI:
+        from ui_environments import EnvironmentCombo
+        window.env_combo=EnvironmentCombo()
+    else:window.env_combo=QComboBox()
+    window.env_combo.setFixedWidth(164); window.env_combo.setStyleSheet(stylesheet('border:0;background:#212121;')); window.env_combo.addItem('No environment',None)
     corner_layout.addWidget(window.env_combo); window.workbench.setCornerWidget(corner,Qt.Corner.TopRightCorner)
     splitter.addWidget(window.workbench); splitter.setSizes([378,942]); splitter.setStretchFactor(0,0); splitter.setStretchFactor(1,1); content.addWidget(splitter,1)
     utilities=QFrame(); utilities.setObjectName('utilityRail'); utilities.setFixedWidth(48); utility_layout=QVBoxLayout(utilities); utility_layout.setContentsMargins(8,8,8,0); utility_layout.setSpacing(16)
@@ -127,9 +158,16 @@ def build_shell(window):
     bottom=QHBoxLayout(footer); bottom.setContentsMargins(10,0,12,0); bottom.setSpacing(12)
     bottom.addWidget(tool('split','Toggle collections sidebar',lambda:left.setVisible(not left.isVisible())))
     local=tool('check','All data is stored on this computer',text='Local'); bottom.addWidget(local)
-    bottom.addWidget(tool('search','Find a request',lambda:window.global_search.setFocus(),text='Find'))
+    bottom.addWidget(tool('search','Find a request',lambda:window.search_palette.open() if USE_REQON_UI else window.global_search.setFocus(),text='Find'))
     bottom.addWidget(tool('console','Request console',window.show_console,text='Console')); bottom.addStretch()
     bottom.addWidget(tool('download','Export collection',window.export_collection,text='Export'))
     bottom.addWidget(tool('folder','Open local data folder',lambda:QDesktopServices.openUrl(QUrl.fromLocalFile(str(window.store.path.parent))),text='Local data'))
-    for button in footer.findChildren(QToolButton):button.setStyleSheet('font-size:11px;padding:0;');button.setIconSize(QSize(13,13))
+    for button in footer.findChildren(QToolButton):button.setStyleSheet(stylesheet('font-size:11px;padding:0;'));button.setIconSize(QSize(13,13))
     outer.addWidget(footer)
+    if USE_REQON_UI:
+        from ui_environments import EnvironmentController
+        window.environments=EnvironmentController(window)
+        window.new_menu.addAction(icon('environment'),'Environment',window.environments.create)
+        from ui_windows import wire_search,WorkspaceStates
+        wire_search(window)
+        window.empty_states=WorkspaceStates(window)

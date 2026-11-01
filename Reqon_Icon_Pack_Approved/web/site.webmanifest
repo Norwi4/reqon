@@ -1,0 +1,17 @@
+{
+  "name": "Reqon",
+  "short_name": "Reqon",
+  "icons": [
+    {
+      "src": "/icons/reqon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/icons/reqon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ],
+  "display": "standalone"
+}

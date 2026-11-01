@@ -32,10 +32,12 @@ class ReflectionDatabase(ProtoReflectionDescriptorDatabase):
 def channel_for(server, tls, receive_limit=10*1024*1024):
     target=grpc_target(server)
     options=tls if isinstance(tls,TLSOptions) else TLSOptions(bool(tls))
-    settings=[('grpc.max_receive_message_length',receive_limit)]
-    if options.enabled and not options.verify_server:
-        from tls_channel import UnverifiedTLSChannel
-        return UnverifiedTLSChannel(target,options,settings)
+    from proxy_support import resolve_proxy
+    route=resolve_proxy(('https://' if options.enabled else 'http://')+target,options.proxy_config)
+    settings=[('grpc.max_receive_message_length',receive_limit),('grpc.enable_http_proxy',0)]
+    if route or options.enabled and (not options.verify_server or options.keylog_file):
+        from tls_channel import TransportChannel
+        return TransportChannel(target,options,settings,route)
     if options.server_name:
         settings.extend([('grpc.ssl_target_name_override',options.server_name),('grpc.default_authority',options.server_name)])
     return grpc.secure_channel(target,tls_credentials(options),options=settings) if options.enabled else grpc.insecure_channel(target,options=settings)
@@ -114,7 +116,7 @@ def compile_proto(source_path,directory):
     """Compile a user-selected schema to a portable descriptor set, without executing generated code."""
     from grpc_tools import protoc
     source=Path(source_path).resolve()
-    with tempfile.TemporaryDirectory(prefix='getman-proto-') as temporary:
+    with tempfile.TemporaryDirectory(prefix='reqon-proto-') as temporary:
         output=Path(temporary)/'schema.protoset'
         includes=files('grpc_tools').joinpath('_proto')
         result=protoc.main(['protoc',f'-I{source.parent}',f'-I{includes}','--include_imports',f'--descriptor_set_out={output}',str(source)])
@@ -230,7 +232,10 @@ def invoke(data, variables, expand, cancellation=None):
         route = f'/{service_name}/{method_name}'
         def encode(value):
             return json_format.ParseDict(value, input_cls()).SerializeToString()
+        received_size=0
         def decode(raw):
+            nonlocal received_size
+            received_size+=len(raw)
             return json_format.MessageToDict(output_cls.FromString(raw), preserving_proto_field_name=True,always_print_fields_with_no_presence=settings.emit_defaults)
         if method.client_streaming:
             if not isinstance(payload, list): raise ValueError('Client streaming requires a JSON array of messages')
@@ -244,7 +249,13 @@ def invoke(data, variables, expand, cancellation=None):
             if method.server_streaming:
                 response = call(encode(payload), timeout=remaining(), metadata=metadata); rpc_call=response
             else: response,rpc_call = call.with_call(encode(payload), timeout=remaining(), metadata=metadata)
-        result = list(response) if method.server_streaming else response
+        if method.server_streaming:
+            result=[]
+            for item in response:
+                if settings.receive_limit>0 and received_size>settings.receive_limit:
+                    response.cancel();raise ValueError('Maximum response size exceeded. Adjust the response size limit in Settings.')
+                result.append(item)
+        else:result=response
         headers=list(rpc_call.initial_metadata() or [])
         trailers=list(rpc_call.trailing_metadata() or [])
     body = json.dumps(result, ensure_ascii=False, indent=2)

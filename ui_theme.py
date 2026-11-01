@@ -81,3 +81,11 @@ QFrame#tlsCard QLabel#tlsState { color:#aaa; font-weight:600; }
 QFrame#snippetPanel { background:#212121; border-left:1px solid #333; }
 QLabel#snippetTitle { color:#eee; font-size:14px; font-weight:600; padding:7px 0; }
 '''
+
+# Shared native presentation for Windows and Linux.
+from ui_brand import USE_REQON_UI,stylesheet
+if USE_REQON_UI:
+    from ui_windows_theme import STYLE as WINDOWS_STYLE
+    STYLE=stylesheet(STYLE)+WINDOWS_STYLE
+    from ui_typography import STYLE as TYPOGRAPHY_STYLE
+    STYLE+=TYPOGRAPHY_STYLE

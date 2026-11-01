@@ -16,7 +16,7 @@ class CollectionStore:
         columns = {table: {r[1] for r in self.all(f'PRAGMA table_info({table})')}
                    for table in ('collections', 'folders', 'requests')}
         if 'uid' not in columns['collections']:
-            backup = self.path.with_name('getman.before-0.6.sqlite3')
+            backup = self.path.with_name(self.path.stem+'.before-0.6.sqlite3')
             if not backup.exists():
                 with closing(sqlite3.connect(backup)) as target:
                     self.db.backup(target)
@@ -179,12 +179,12 @@ class CollectionStore:
                 self.db.execute(f'UPDATE {TABLES[typ]} SET sort_order=? WHERE id=?', (order, item))
 
     def local_link(self, kind, id):
-        return f"getman://{kind}/{self.entity(kind, id)['uid']}"
+        return f"reqon://{kind}/{self.entity(kind, id)['uid']}"
 
     def resolve_link(self, link):
         from urllib.parse import urlparse
         url = urlparse(link.strip())
-        if url.scheme != 'getman' or url.netloc not in TABLES: raise ValueError('Enter a getman:// local link.')
+        if url.scheme not in ('reqon', 'getman') or url.netloc not in TABLES: raise ValueError('Enter a reqon:// local link.')
         found = self.all(f'SELECT id FROM {TABLES[url.netloc]} WHERE uid=?', (url.path.strip('/'),))
         if not found: raise ValueError('This item is not in this local workspace.')
         return url.netloc, found[0][0]
@@ -243,9 +243,24 @@ class CollectionStore:
                          'schema': 'https://schema.getpostman.com/json/collection/v2.1.0/collection.json'},
                 'variable': [{'key': k, 'value': v} for k, v in json.loads(collection['variables']).items()], 'item': branch()}
 
+    def export_documents(self, collection_ids):
+        ids=list(dict.fromkeys(collection_ids))
+        if not ids:raise ValueError('Select at least one collection to export.')
+        return {'format':'reqon-collections-v1','collections':[self.export_document(cid) for cid in ids]}
+
+    def import_documents(self, source, default_name='Imported collection'):
+        """Import a selection export atomically, or one existing collection file."""
+        if not isinstance(source,dict):raise ValueError('Not a collection JSON object.')
+        if source.get('format')!='reqon-collections-v1':return [self.import_document(source,default_name)]
+        documents=source.get('collections')
+        if not isinstance(documents,list) or not documents:raise ValueError('The collections file must contain a non-empty collections list.')
+        if not all(isinstance(document,dict) for document in documents):raise ValueError('Invalid collection in the collections file.')
+        with self.atomic():return [self.import_document(document,default_name) for document in documents]
+
     def import_document(self, source, default_name='Imported collection'):
+        if not isinstance(source,dict):raise ValueError('Not a collection JSON object.')
         native = source.get('format') == 'getman-collection-v1'
-        if not native and not ('info' in source and 'item' in source): raise ValueError('Not a Postman v2.1 or Getman collection.')
+        if not native and not ('info' in source and 'item' in source): raise ValueError('Not a Postman v2.1 or Reqon collection.')
         kind = source.get('kind', 'http') if native else 'http'
         if kind not in ('http', 'grpc', 'mixed'): raise ValueError('Unsupported collection type.')
         def restore(data):

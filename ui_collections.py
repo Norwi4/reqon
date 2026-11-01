@@ -6,10 +6,13 @@ from PySide6.QtWidgets import (QAbstractItemView, QTreeWidget, QStyledItemDelega
     QStyle, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QPlainTextEdit, QTabWidget,
     QPushButton, QSpinBox)
 from ui_components import icon, tool, KeyValueTable, CodeEditor
+from ui_brand import USE_REQON_UI
 
 ROLE = Qt.ItemDataRole.UserRole
 STAR = int(ROLE) + 1
 PROTOCOL = int(ROLE) + 2
+METHOD = int(ROLE) + 3
+COUNT = int(ROLE) + 4
 
 
 class CollectionMenu(QMenu):
@@ -30,6 +33,9 @@ class TreeDelegate(QStyledItemDelegate):
     def paint(self, painter, option, index):
         tree = self.parent()
         option = QStyleOptionViewItem(option); self.initStyleOption(option, index)
+        if USE_REQON_UI:
+            from ui_windows_tree import paint_row
+            painter.save();paint_row(painter,option,index,tree);painter.restore();return
         item = tree.itemFromIndex(index)
         hovered = item is tree.hover_item
         value = index.data(ROLE)
@@ -51,7 +57,7 @@ class TreeDelegate(QStyledItemDelegate):
         if item is tree.currentItem() and tree.hasFocus():
             painter.setPen(QPen(QColor('#6e9ecf'), 1)); painter.drawRect(full_rect.adjusted(0, 0, -1, -1))
 
-    def sizeHint(self, option, index): return QSize(80, 28)
+    def sizeHint(self, option, index): return QSize(80, 30 if USE_REQON_UI else 28)
 
 
 class CollectionTree(QTreeWidget):
@@ -72,6 +78,7 @@ class CollectionTree(QTreeWidget):
         self.setAutoExpandDelay(650)
         self.setItemDelegate(TreeDelegate(self))
         self.hover_item = None
+        self._branch_click=False
         self.more = tool('more', 'More actions', self.show_hover_menu, parent=self.viewport())
         self.star = tool('star', 'Add to favorites', self.toggle_hover_star, parent=self.viewport())
         for button in (self.more, self.star):
@@ -98,6 +105,25 @@ class CollectionTree(QTreeWidget):
 
     def mouseMoveEvent(self, event):
         self.update_hover(self.itemAt(event.position().toPoint())); super().mouseMoveEvent(event)
+
+    def mousePressEvent(self,event):
+        item=self.itemAt(event.position().toPoint())
+        self._branch_click=bool(USE_REQON_UI and item and event.position().x()<self.visualItemRect(item).left())
+        super().mousePressEvent(event)
+
+    def mouseReleaseEvent(self,event):
+        super().mouseReleaseEvent(event);self._branch_click=False
+
+    def paintEvent(self,event):
+        super().paintEvent(event)
+        if USE_REQON_UI:
+            from ui_brand import COLORS
+            # Paint after branches: Qt clips row delegates to the indented
+            # content area, while the selected marker belongs at the rail edge.
+            painter=QPainter(self.viewport())
+            for item in self.selectedItems():
+                rect=self.visualItemRect(item)
+                if rect.isValid():painter.fillRect(QRect(0,rect.top(),2,rect.height()),QColor(COLORS['accent']))
 
     def leaveEvent(self, event):
         if not self.more.underMouse() and not self.star.underMouse(): self.clear_hover()
@@ -159,6 +185,9 @@ class CollectionPage(QWidget):
         super().__init__(); self.window = window; self.collection_id = cid
         self.entity_key = ('collection', cid); self.request_id = None; self.busy = False
         self.setObjectName('page')
+        if USE_REQON_UI:
+            from ui_windows_collection import build_collection_page
+            build_collection_page(self,window,cid);return
         layout = QVBoxLayout(self); layout.setContentsMargins(16, 12, 16, 12); layout.setSpacing(12)
         head = QHBoxLayout(); self.title = QLabel(); self.title.setObjectName('docsTitle'); head.addWidget(self.title, 1)
         head.addWidget(tool('copy', 'Copy local link', lambda: window.copy_local_link('collection', cid)))
@@ -185,11 +214,15 @@ class CollectionPage(QWidget):
 
     def collect(self): return {}
     def refresh(self):
-        store = self.window.store; row = store.entity('collection', self.collection_id); self.title.setText(row['name'])
+        store = self.window.store; row = store.entity('collection', self.collection_id)
+        if self.title.text()!=row['name']:self.title.setText(row['name'])
         requests = store.all('SELECT data FROM requests WHERE collection_id=?', (self.collection_id,))
         grpc = sum(json.loads(r[0]).get('kind') == 'grpc' for r in requests)
         folders = store.all('SELECT COUNT(*) FROM folders WHERE collection_id=?', (self.collection_id,))[0][0]
-        self.count.setText(f'{len(requests)} requests   ·   {len(requests)-grpc} HTTP   ·   {grpc} gRPC   ·   {folders} folders')
+        if USE_REQON_UI:
+            self.count.setText(f'{len(requests)} requests');self.title.setToolTip(row['name'])
+            self.protocol_counts.setText(f'{len(requests)-grpc} HTTP · {grpc} gRPC\n{folders} folders')
+        else:self.count.setText(f'{len(requests)} requests   ·   {len(requests)-grpc} HTTP   ·   {grpc} gRPC   ·   {folders} folders')
         index = self.window.workbench.indexOf(self)
         if index >= 0: self.window.workbench.setTabText(index, row['name'])
     def save_description(self):

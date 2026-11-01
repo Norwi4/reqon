@@ -1,7 +1,7 @@
 """Executable Bash snippets. Values are quoted as data, never evaluated as shell code."""
 import json
 import shlex
-from request_transport import TLSOptions, GRPCOptions, expand, grpc_metadata, grpc_target, prepare_http, parse_message
+from request_transport import TLSOptions, GRPCOptions, HTTPOptions, expand, grpc_metadata, grpc_target, prepare_http, parse_message
 
 
 def command_groups(data, variables=None):
@@ -35,12 +35,33 @@ def command_groups(data, variables=None):
         groups.extend([['-d',text],[target],[f'{service}/{method}']])
         return 'gRPCurl',groups
     url,method,headers,body=prepare_http(data,variables)
-    groups=[['curl'],['--location'],['--globoff'],['--request',method],['--url',url],['--max-time','30']]
+    general=data.get('_general')
+    if general:
+        names={key.lower() for key in headers}
+        if general.no_cache and 'cache-control' not in names:headers['Cache-Control']='no-cache'
+        if general.postman_token and 'postman-token' not in names:headers['Postman-Token']=str(__import__('uuid').uuid4())
+    settings=HTTPOptions.from_data(data,variables)
+    groups=[['curl']]
+    version=data.get('http_version')
+    if version=='HTTP/2':groups.append(['--http2-prior-knowledge'])
+    elif version=='HTTP/1.x':groups.append(['--http1.1'])
+    if settings.follow_redirects:groups.append(['--location'])
+    groups.extend([['--globoff'],['--request',method],['--url',url],['--max-time',format(settings.timeout,'g')]])
+    if not settings.verify:groups.append(['--insecure'])
+    for flag,value in (('--cacert',settings.ca_file if settings.verify else ''),('--cert',settings.cert_file),('--key',settings.key_file)):
+        if value:groups.append([flag,value])
     if method=='HEAD':
         if body is not None:raise ValueError('Select Body: none to generate a cURL HEAD command.')
         groups.append(['--head'])
     for key,value in headers.items():groups.append(['--header',f'{key}: {value}'])
-    if body is not None:groups.append(['--data-raw',body.decode('utf-8')])
+    if any(key.lower()=='accept-encoding' and value.strip().lower()!='identity' for key,value in headers.items()):groups.append(['--compressed'])
+    if data.get('body_type')=='file':
+        name=expand(data.get('body_file',''),variables)
+        if general:
+            from general_settings import resolve_file
+            name=str(resolve_file(name,general))
+        groups.append(['--data-binary','@'+name])
+    elif body is not None:groups.append(['--data-raw',body.decode('utf-8')])
     return 'cURL',groups
 
 

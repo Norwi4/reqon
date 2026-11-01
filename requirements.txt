@@ -1,6 +1,11 @@
-PySide6>=6.9,<7
+# PySide6 6.12.0 Linux wheels can corrupt None references on Python 3.10/3.11.
+PySide6==6.11.3; sys_platform == "linux" and python_version < "3.12"
+PySide6>=6.9,<7; sys_platform != "linux" or python_version >= "3.12"
 PyInstaller>=6.15,<7
 grpcio>=1.70,<2
 grpcio-reflection>=1.70,<2
 grpcio-tools>=1.70,<2
 protobuf>=5,<7
+PySocks==1.7.1
+httpcore[http2]>=1.0,<2
+jsonschema>=4.23,<5

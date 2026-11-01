@@ -1,8 +1,9 @@
 """Native gRPC settings, laid out like the Postman request Settings tab."""
+from ui_brand import stylesheet
 from PySide6.QtCore import Qt, QRectF
 from PySide6.QtGui import QColor, QPainter, QPen, QIntValidator
 from PySide6.QtWidgets import (QAbstractButton,QWidget,QScrollArea,QVBoxLayout,
-    QGridLayout,QLabel,QLineEdit)
+    QGridLayout,QLabel,QLineEdit,QCheckBox)
 
 
 class ToggleSwitch(QAbstractButton):
@@ -39,14 +40,14 @@ def settings_tab(page,data):
     scroll=QScrollArea(); scroll.setWidgetResizable(True); scroll.setFrameShape(QScrollArea.Shape.NoFrame)
     scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
     content=QWidget(); content.setObjectName('grpcSettings'); scroll.setWidget(content)
-    content.setStyleSheet('''
+    content.setStyleSheet(stylesheet('''
         QWidget#grpcSettings { background:#212121; }
         QLabel { font-size:12px; color:#ababab; }
         QLabel#settingTitle { font-weight:600; }
         QLineEdit { background:#212121; border:1px solid #333; border-radius:3px;
             font-size:12px; padding:4px 8px; color:#e6e6e6; }
         QLineEdit:focus { border-color:#6a6a6a; }
-    ''')
+    '''))
     layout=QGridLayout(content); layout.setContentsMargins(30,14,24,28)
     layout.setHorizontalSpacing(30); layout.setVerticalSpacing(20)
     layout.setColumnStretch(0,2); layout.setColumnStretch(1,1)
@@ -65,13 +66,14 @@ def settings_tab(page,data):
         ('Maximum response message size','Maximum allowed message size in MB. To receive messages of any size, set this value to 0.',page.grpc_max_response_mb),
         ('Connection Timeout','Configure the deadline to invoke and receive the response, in milliseconds. To keep the connection open indefinitely, set this value to 0.',page.grpc_timeout_ms),
     ]
+    page.general_overrides=QCheckBox('Override General settings');layout.addWidget(page.general_overrides,0,0,1,2)
     for index,(title,description,field) in enumerate(entries):
         text=QWidget(); labels=QVBoxLayout(text); labels.setContentsMargins(0,0,0,0); labels.setSpacing(4)
         heading=QLabel(title); heading.setObjectName('settingTitle'); heading.setWordWrap(True)
         details=QLabel(description); details.setWordWrap(True)
         labels.addWidget(heading); labels.addWidget(details)
         heading.setBuddy(field); field.setAccessibleName(title); field.setAccessibleDescription(description)
-        layout.addWidget(text,index,0,Qt.AlignmentFlag.AlignTop)
-        layout.addWidget(field,index,1,Qt.AlignmentFlag.AlignTop|Qt.AlignmentFlag.AlignLeft)
-    layout.setRowStretch(len(entries),1)
+        layout.addWidget(text,index+1,0,Qt.AlignmentFlag.AlignTop)
+        layout.addWidget(field,index+1,1,Qt.AlignmentFlag.AlignTop|Qt.AlignmentFlag.AlignLeft)
+    layout.setRowStretch(len(entries)+1,1)
     return scroll

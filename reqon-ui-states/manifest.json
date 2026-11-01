@@ -1,0 +1,116 @@
+{
+  "name": "Reqon UI States",
+  "version": "1.0.0",
+  "themes": [
+    "light",
+    "dark"
+  ],
+  "formats": [
+    "svg",
+    "png"
+  ],
+  "pngSizes": [
+    256,
+    512
+  ],
+  "states": [
+    {
+      "id": "response-ready-to-send",
+      "category": "response",
+      "when": "Before a request has been executed in the selected tab",
+      "title": "Ready to send",
+      "description": "Send a request to inspect the response."
+    },
+    {
+      "id": "request-create-new",
+      "category": "request",
+      "when": "No request is currently open; user is prompted to create one",
+      "title": "Create a request",
+      "description": "Create a request to start working with your API."
+    },
+    {
+      "id": "activity-no-requests",
+      "category": "history",
+      "when": "Request history has no entries",
+      "title": "No activity",
+      "description": "Run a request to see activity here."
+    },
+    {
+      "id": "response-no-content",
+      "category": "response",
+      "when": "Response completed but has no body (for example HTTP 204)",
+      "title": "No response body",
+      "description": "The request completed without a response body."
+    },
+    {
+      "id": "error-service-unavailable",
+      "category": "error",
+      "when": "Service is unavailable (gRPC UNAVAILABLE / HTTP 503), not a specific DNS or TLS error",
+      "title": "Service unavailable",
+      "description": "The service is currently unavailable."
+    },
+    {
+      "id": "error-connection-refused",
+      "category": "error",
+      "when": "TCP connection refused or target port unreachable",
+      "title": "Connection failed",
+      "description": "Could not connect to the target service."
+    },
+    {
+      "id": "error-dns-resolution",
+      "category": "error",
+      "when": "Hostname could not be resolved",
+      "title": "DNS error",
+      "description": "Check the server hostname and DNS configuration."
+    },
+    {
+      "id": "error-tls-handshake",
+      "category": "error",
+      "when": "TLS handshake, certificate, or trust validation failure",
+      "title": "TLS error",
+      "description": "A secure connection could not be established."
+    },
+    {
+      "id": "error-request-timeout",
+      "category": "error",
+      "when": "Deadline exceeded or request timed out",
+      "title": "Request timed out",
+      "description": "The request took too long to complete."
+    },
+    {
+      "id": "collections-empty",
+      "category": "collections",
+      "when": "No collections exist in the active workspace",
+      "title": "No collections",
+      "description": "Create a collection to organize your requests."
+    },
+    {
+      "id": "search-no-results",
+      "category": "search",
+      "when": "Search returned zero matches",
+      "title": "No results",
+      "description": "Try another search query."
+    },
+    {
+      "id": "data-empty",
+      "category": "data",
+      "when": "A data-driven view has no records",
+      "title": "No data",
+      "description": "There is no data to display here."
+    },
+    {
+      "id": "folder-empty",
+      "category": "collections",
+      "when": "Selected collection folder contains no requests or child items",
+      "title": "Empty folder",
+      "description": "This folder does not contain any requests yet."
+    },
+    {
+      "id": "response-success",
+      "category": "response",
+      "when": "Request completed successfully and success feedback is appropriate; do not replace an actual response body",
+      "title": "Request completed",
+      "description": "The request completed successfully."
+    }
+  ]
+}

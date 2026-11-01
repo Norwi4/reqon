@@ -42,7 +42,7 @@ class UIIntegration(unittest.TestCase):
         page=self.window.current_page(); page.server.setText('localhost:50051'); page.message.setPlainText('{"hello":"world"}')
         page.protocol.menu().actions()[0].trigger()
         http=self.window.current_page(); self.assertIsInstance(http,RequestPage)
-        self.assertEqual(http.url.text(),'localhost:50051'); self.assertEqual(http.body.toPlainText(),'{"hello":"world"}')
+        self.assertEqual(http.url.text(),'http://localhost:50051'); self.assertEqual(http.body.toPlainText(),'{"hello":"world"}')
         http.protocol.menu().actions()[1].trigger(); page=self.window.current_page(); self.assertIsInstance(page,GrpcPage)
         cid=self.store.insert('collections',{'name':'Local test','kind':'grpc'})
         page.collection_id=cid; self.window.save_request(page)

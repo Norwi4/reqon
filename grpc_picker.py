@@ -1,4 +1,5 @@
 """Anchored native gRPC method picker: loading, grouped results, and retryable errors."""
+from ui_brand import stylesheet
 from PySide6.QtCore import Qt, Signal, QEvent, QPoint, QSize, QTimer
 from PySide6.QtGui import QColor, QFont, QPainter, QPen
 from PySide6.QtWidgets import (QApplication, QWidget, QFrame, QVBoxLayout, QHBoxLayout,
@@ -30,13 +31,13 @@ class MethodSelector(QFrame):
 
     def __init__(self,parent=None):
         super().__init__(parent); self.setObjectName('methodSelector'); self.setMinimumWidth(200)
-        self.setStyleSheet('QFrame#methodSelector {border:0;} QFrame#methodSelector[expanded="true"] {border:2px solid #1685ec;border-radius:3px;}')
+        self.setStyleSheet(stylesheet('QFrame#methodSelector {border:0;} QFrame#methodSelector[expanded="true"] {border:2px solid #1685ec;border-radius:3px;}'))
         self.state='idle'; self.methods=[]; self.selected=None; self.display=''; self.source='reflection'; self.details=''
         self.popup=None; self._expanded=False
         layout=QHBoxLayout(self); layout.setContentsMargins(6,0,2,0); layout.setSpacing(0)
         self.symbol=QLabel(); self.symbol.setPixmap(icon('rpc','#7ca8d9').pixmap(16,16)); layout.addWidget(self.symbol)
         self.editor=QLineEdit(); self.editor.setPlaceholderText('Select a method'); self.editor.setReadOnly(True)
-        self.editor.setStyleSheet('border:0;background:transparent;padding:0 8px;'); layout.addWidget(self.editor,1)
+        self.editor.setStyleSheet(stylesheet('border:0;background:transparent;padding:0 8px;')); layout.addWidget(self.editor,1)
         self.arrow=tool('chevron','Select a service and method',self.toggle); layout.addWidget(self.arrow)
         self.editor.installEventFilter(self); self.editor.textChanged.connect(self.filter_methods)
         QApplication.instance().installEventFilter(self)
@@ -45,7 +46,7 @@ class MethodSelector(QFrame):
         if self.popup is not None:return
         self.popup=QFrame(self.window()); self.popup.setObjectName('methodPopup')
         self.destroyed.connect(self.popup.deleteLater)
-        self.popup.setStyleSheet('''
+        self.popup.setStyleSheet(stylesheet('''
             QFrame#methodPopup {background:#242424;border:1px solid #373737;border-radius:4px;}
             QFrame#reflectionError {background:#5a1d08;border:0;border-radius:3px;}
             QListWidget {background:transparent;border:0;outline:none;}
@@ -56,7 +57,7 @@ class MethodSelector(QFrame):
             QFrame#sourceFooter {border:0;border-top:1px solid #383838;}
             QPushButton#importChoice,QPushButton#reflectionChoice {text-align:left;border:0;background:transparent;padding:5px 0;font-weight:600;}
             QPushButton#importChoice:hover,QPushButton#reflectionChoice:hover {color:white;background:#2d2d2d;}
-        ''')
+        '''))
         shadow=QGraphicsDropShadowEffect(self.popup); shadow.setBlurRadius(18); shadow.setOffset(0,5); shadow.setColor(QColor(0,0,0,130)); self.popup.setGraphicsEffect(shadow)
         root=QVBoxLayout(self.popup); root.setContentsMargins(14,12,14,0); root.setSpacing(10)
         self.error_banner=QFrame(); self.error_banner.setObjectName('reflectionError')
@@ -64,7 +65,7 @@ class MethodSelector(QFrame):
         error_row=QHBoxLayout(self.error_banner); error_row.setContentsMargins(12,8,10,8); error_row.setSpacing(8)
         self.error_label=QLabel(); self.error_label.setWordWrap(True); self.error_label.setTextFormat(Qt.TextFormat.RichText)
         self.error_label.linkActivated.connect(self.toggle_details); error_row.addWidget(self.error_label,1)
-        self.retry=QPushButton('Try Again'); self.retry.setStyleSheet('background:transparent;border:1px solid #926047;padding:6px 12px;'); self.retry.clicked.connect(self.refresh_requested.emit); error_row.addWidget(self.retry)
+        self.retry=QPushButton('Try Again'); self.retry.setStyleSheet(stylesheet('background:transparent;border:1px solid #926047;padding:6px 12px;')); self.retry.clicked.connect(self.refresh_requested.emit); error_row.addWidget(self.retry)
         root.addWidget(self.error_banner)
         self.error_details=QPlainTextEdit(); self.error_details.setReadOnly(True); self.error_details.setFixedHeight(104); root.addWidget(self.error_details)
         self.choices=QWidget(); choices=QVBoxLayout(self.choices); choices.setContentsMargins(0,0,0,8); choices.setSpacing(8)
@@ -72,7 +73,7 @@ class MethodSelector(QFrame):
         self.no_schema=QLabel('No Protobuf schemas available.'); self.no_schema.setObjectName('hint'); choices.addWidget(self.no_schema)
         self.import_button=QPushButton('  Import a .proto file'); self.import_button.setObjectName('importChoice'); self.import_button.setIcon(icon('download')); self.import_button.clicked.connect(self.import_requested.emit); choices.addWidget(self.import_button)
         description=QLabel('      Select a .proto file or descriptor set from your local system.'); description.setObjectName('hint'); description.setWordWrap(True); choices.addWidget(description)
-        separator=QFrame(); separator.setFixedHeight(1); separator.setStyleSheet('background:#3b3b3b;'); choices.addWidget(separator)
+        separator=QFrame(); separator.setFixedHeight(1); separator.setStyleSheet(stylesheet('background:#3b3b3b;')); choices.addWidget(separator)
         reflect_row=QHBoxLayout(); reflect_row.setContentsMargins(0,0,0,0); reflect_row.setSpacing(6)
         self.spinner=Spinner(); reflect_row.addWidget(self.spinner)
         self.reflection_symbol=QLabel(); self.reflection_symbol.setPixmap(icon('reflection').pixmap(18,18)); reflect_row.addWidget(self.reflection_symbol)

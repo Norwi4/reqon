@@ -6,7 +6,12 @@ from functools import lru_cache
 from pathlib import Path
 import re
 import ssl
+import gzip
+import zlib
+import urllib.request
 from urllib.parse import urlencode, urlsplit, urlunsplit
+from ui_brand import USE_REQON_UI
+if USE_REQON_UI:import json_comments
 
 
 def expand(value, variables):
@@ -14,6 +19,7 @@ def expand(value, variables):
 
 
 def parse_message(text):
+    if USE_REQON_UI:return json_comments.loads(text)
     # Preserve strings (URLs, escaped quotes) while removing editor-style JSON comments.
     token=r'"(?:\\.|[^"\\])*"'
     clean=re.sub(token+r'|//[^\r\n]*|/\*[\s\S]*?\*/',
@@ -55,6 +61,8 @@ class TLSOptions:
     key_file: str = ''
     verify_server: bool = False
     server_name: str = ''
+    proxy_config: object = None
+    keylog_file: str = ''
 
     @classmethod
     def from_data(cls, data, variables=None):
@@ -64,7 +72,7 @@ class TLSOptions:
             return str(Path(text).expanduser()) if text else ''
         return cls(bool(data.get('tls',False)), *(path(data.get(key,''))
             for key in ('tls_ca_file','tls_cert_file','tls_key_file')),
-            bool(data.get('tls_verify',False)),expand(data.get('tls_server_name',''),variables).strip())
+            bool(data.get('tls_verify',False)),expand(data.get('tls_server_name',''),variables).strip(),data.get('_proxy_config'),data.get('_tls_keylog',''))
 
 
 @dataclass(frozen=True)
@@ -128,9 +136,14 @@ def tls_credentials(options):
 
 def grpc_metadata(data, variables):
     metadata=[(expand(k,variables).lower(),expand(v,variables)) for k,v in active_rows(data,'metadata','metadata_rows')]
-    if data.get('auth_type')=='Bearer Token':
-        metadata=[(k,v) for k,v in metadata if k!='authorization']
-        metadata.append(('authorization','Bearer '+expand(data.get('auth_value',''),variables)))
+    auth=data.get('auth_type');value=expand(data.get('auth_value',''),variables)
+    key='authorization';entry=None
+    if auth=='Bearer Token':entry='Bearer '+value
+    elif auth=='Basic Auth':entry='Basic '+base64.b64encode(value.encode()).decode()
+    elif auth=='API Key':
+        key,_,entry=value.partition(':');key=key.strip().lower();entry=entry.strip()
+    if entry is not None:
+        metadata=[(k,v) for k,v in metadata if k!=key];metadata.append((key,entry))
     return metadata
 
 
@@ -141,7 +154,9 @@ def prepare_http(data, variables):
     parts=urlsplit(url)
     if parts.scheme not in ('http','https') or not parts.netloc:raise ValueError('Enter a valid HTTP or HTTPS URL.')
     pairs=[(expand(k,variables),expand(v,variables)) for k,v in active_rows(data,'params','param_rows')]
-    query='&'.join(part for part in (parts.query,urlencode(pairs)) if part)
+    original_pairs=[list(row[:2]) for row in active_rows(data,'params','param_rows')]
+    encoded=expand(data['imported_query'],variables) if 'imported_query' in data and original_pairs==data.get('imported_query_params') else urlencode(pairs)
+    query='&'.join(part for part in (parts.query,encoded) if part)
     url=urlunsplit((parts.scheme,parts.netloc,parts.path,query,''))
     headers={}
     def header(key,value,default=False):
@@ -157,9 +172,67 @@ def prepare_http(data, variables):
         key,_,secret=value.partition(':'); header(key.strip(),secret.strip())
     body=None
     if data.get('body_type')=='raw':
-        body=expand(data.get('body',''),variables).encode('utf-8')
+        text=expand(data.get('body',''),variables);original=text
+        if USE_REQON_UI:
+            media_type=next((value.split(';',1)[0].strip().lower() for key,value in headers.items() if key.lower()=='content-type'),'')
+            if media_type in ('application/json','text/json') or media_type.endswith('+json') or not media_type and json_comments.looks_like_json(text):
+                try:text=json_comments.normalize(text)
+                except json.JSONDecodeError:
+                    if data.get('_general') is None or data['_general'].request_validation:raise
+        body=text.encode('utf-8')
+        if text!=original and any(key.lower()=='content-length' for key in headers):header('Content-Length',str(len(body)))
         header('Content-Type','application/json' if body.lstrip().startswith((b'{',b'[')) else 'text/plain; charset=utf-8',True)
     elif data.get('body_type')=='x-www-form-urlencoded':
         body=urlencode([(expand(k,variables),expand(v,variables)) for k,v in active_rows(data,'form','form_rows')]).encode()
         header('Content-Type','application/x-www-form-urlencoded',True)
+    elif data.get('body_type')=='file':header('Content-Type','application/octet-stream',True)
     return url,data.get('method','GET'),headers,body
+
+
+@dataclass(frozen=True)
+class HTTPOptions:
+    verify: bool = True
+    follow_redirects: bool = True
+    timeout: float = 30
+    ca_file: str = ''
+    cert_file: str = ''
+    key_file: str = ''
+
+    @classmethod
+    def from_data(cls,data,variables=None):
+        import math
+        timeout=float(data.get('http_timeout',30))
+        if not math.isfinite(timeout) or not 0<=timeout<=2147483.647:
+            raise ValueError('HTTP timeout must be between 0 and 2147483.647 seconds.')
+        return cls(bool(data.get('http_verify',True)),bool(data.get('http_follow_redirects',True)),timeout,
+                   *(expand(data.get(key,''),variables or {}).strip() for key in ('http_ca_file','http_cert_file','http_key_file')))
+
+
+def open_http(request,data,variables,proxy_config=None):
+    from proxy_http import RoutingHandler,HTTPHandler,HTTPSHandler
+    options=HTTPOptions.from_data(data,variables)
+    context=ssl.create_default_context() if options.verify else ssl._create_unverified_context()
+    if options.ca_file and options.verify:context.load_verify_locations(cafile=str(Path(options.ca_file).expanduser()))
+    load_client_identity(context,options)
+    handlers=[RoutingHandler(proxy_config),HTTPHandler(),HTTPSHandler(context=context)]
+    class Redirects(urllib.request.HTTPRedirectHandler):
+        def redirect_request(self,req,fp,code,msg,headers,newurl):
+            if not options.follow_redirects:return None
+            redirected=super().redirect_request(req,fp,code,msg,headers,newurl)
+            def origin(url):
+                parts=urlsplit(url);return parts.scheme,parts.hostname,parts.port or (443 if parts.scheme=='https' else 80)
+            if redirected and origin(req.full_url)!=origin(newurl):
+                for name in ('Authorization','Cookie','Proxy-authorization'):redirected.remove_header(name)
+            return redirected
+    handlers.append(Redirects())
+    return urllib.request.build_opener(*handlers).open(request,timeout=options.timeout or None)
+
+
+def decode_http_content(content,encoding):
+    for name in reversed([part.strip().lower() for part in encoding.split(',') if part.strip()]):
+        if name=='gzip':content=gzip.decompress(content)
+        elif name=='deflate':
+            try:content=zlib.decompress(content)
+            except zlib.error:content=zlib.decompress(content,-zlib.MAX_WBITS)
+        elif name!='identity':raise ValueError(f'Unsupported response encoding: {name}. Use Accept-Encoding: gzip, deflate or identity.')
+    return content

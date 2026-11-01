@@ -2,14 +2,18 @@
 import json
 import re
 from PySide6.QtCore import Qt, QSize, QRect, QByteArray, Signal
-from PySide6.QtGui import QColor, QIcon, QPixmap, QPainter, QFont, QSyntaxHighlighter, QTextCharFormat
+from PySide6.QtGui import QColor, QIcon, QPixmap, QPainter, QFont, QSyntaxHighlighter, QTextCharFormat, QTextOption
 from PySide6.QtSvg import QSvgRenderer
 from PySide6.QtWidgets import (QWidget, QPushButton, QToolButton, QPlainTextEdit, QVBoxLayout,
     QHBoxLayout, QLabel, QTableWidget, QTableWidgetItem, QHeaderView, QAbstractItemView,
     QDialog, QLineEdit, QMessageBox, QStyledItemDelegate, QComboBox)
+from ui_brand import USE_REQON_UI,COLORS as C,color
 
 
 PATHS = {
+    'proxy': '<rect x="3" y="4" width="18" height="6" rx="1"/><rect x="3" y="14" width="18" height="6" rx="1"/><path d="M7 7h1M7 17h1M12 10v4M16 7h2M16 17h2"/>',
+    'eye': '<path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/>',
+    'collapse': '<path d="m7 7 5-4 5 4M7 17l5 4 5-4M4 12h16"/>',
     'more': '<circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/>',
     'star': '<path d="m12 3 2.8 5.7 6.2.9-4.5 4.4 1.1 6.2L12 17.3l-5.6 2.9 1.1-6.2L3 9.6l6.2-.9Z"/>',
     'trash': '<path d="M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7M14 10v7"/>',
@@ -98,6 +102,16 @@ class Syntax(QSyntaxHighlighter):
             elif value in ('true','false','null'): color = '#569cd6'
             else: color = '#b5cea8'
             fmt = QTextCharFormat(); fmt.setForeground(QColor(color)); self.setFormat(match.start(), len(value), fmt)
+        if USE_REQON_UI and text.lstrip().startswith('<'):
+            fmt=QTextCharFormat();fmt.setForeground(QColor(C['key']))
+            for match in re.finditer(r'</?[\w:.-]+|/?>',text):self.setFormat(match.start(),len(match.group()),fmt)
+        if USE_REQON_UI:
+            from json_comments import comment_ranges
+            spans,in_block=comment_ranges(text,self.previousBlockState()==1,allow_incomplete=True)
+            self.setCurrentBlockState(1 if in_block else 0)
+            fmt=QTextCharFormat();fmt.setForeground(QColor(C['subtle']))
+            for start,end in spans:
+                self.setFormat(len(text[:start].encode('utf-16-le'))//2,len(text[start:end].encode('utf-16-le'))//2,fmt)
 
 
 class Gutter(QWidget):
@@ -108,15 +122,55 @@ class Gutter(QWidget):
 class CodeEditor(QPlainTextEdit):
     def __init__(self, text='', readonly=False):
         super().__init__(); self.setObjectName('codeEditor')
-        font = QFont('Consolas'); font.setPixelSize(14); self.setFont(font)
+        from ui_typography import load_fonts,CODE_FAMILY
+        if USE_REQON_UI:load_fonts()
+        font = QFont(CODE_FAMILY if USE_REQON_UI else 'Consolas'); font.setPixelSize(13 if USE_REQON_UI else 14); self.setFont(font)
         self.setLineWrapMode(QPlainTextEdit.LineWrapMode.NoWrap)
+        if USE_REQON_UI:
+            self.setWordWrapMode(QTextOption.WrapMode.NoWrap)
+            self.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
         self.setTabStopDistance(self.fontMetrics().horizontalAdvance(' ') * 4)
         self.document().setDocumentMargin(8)
         self.gutter = Gutter(self); self.highlighter = Syntax(self.document())
         self.blockCountChanged.connect(self.update_margin); self.updateRequest.connect(self.update_gutter)
         self.setPlainText(text); self.setReadOnly(readonly); self.update_margin()
+        if USE_REQON_UI:
+            from ui_windows_editor import EditorPresentation
+            self.gutter_color=C['canvas'];self.presentation=EditorPresentation(self)
+            from ui_typography import apply_editor_font
+            from ui_editor_behavior import settings
+            apply_editor_font(self,settings())
 
-    def update_margin(self): self.setViewportMargins(32 + len(str(self.blockCount())) * 7, 0, 0, 0)
+    def update_margin(self):
+        presentation=getattr(self,'presentation',None)
+        self.setViewportMargins(24+self.fontMetrics().horizontalAdvance(str(self.blockCount())),0,0,presentation.bottom_margin if presentation else 0)
+    def setPlaceholderText(self,text):
+        self._placeholder=text;self.viewport().update()
+    def placeholderText(self):return getattr(self,'_placeholder','')
+    def paintEvent(self,event):
+        super().paintEvent(event)
+        if self.document().isEmpty() and self.placeholderText():
+            # Qt's native placeholder is covered by the full-width current-line
+            # selection. Paint the hint last; it never becomes document text.
+            painter=QPainter(self.viewport());painter.setFont(self.font());painter.setPen(QColor(C['subtle']))
+            painter.drawText(int(self.document().documentMargin()),int(self.contentOffset().y())+self.fontMetrics().ascent(),self.placeholderText())
+    def keyPressEvent(self,event):
+        from ui_editor_behavior import editor_key
+        if not editor_key(self,event):super().keyPressEvent(event)
+    def contextMenuEvent(self,event):
+        menu=self.createStandardContextMenu()
+        link=self.link_at(event.pos())
+        if link and hasattr(self,'link_callback'):menu.addSeparator();menu.addAction('Open link in new request',lambda:self.link_callback(link))
+        menu.exec(event.globalPos());menu.deleteLater()
+    def link_at(self,point):
+        cursor=self.cursorForPosition(point);position=cursor.positionInBlock()
+        for match in re.finditer(r'https?://[^\s\"<>]+',cursor.block().text()):
+            if match.start()<=position<=match.end():return match.group().rstrip('.,;)')
+    def mouseReleaseEvent(self,event):
+        if event.modifiers()&Qt.KeyboardModifier.ControlModifier and hasattr(self,'link_callback'):
+            link=self.link_at(event.pos())
+            if link:self.link_callback(link);event.accept();return
+        super().mouseReleaseEvent(event)
     def update_gutter(self, rect, dy):
         if dy: self.gutter.scroll(0,dy)
         else: self.gutter.update(0,rect.y(),self.gutter.width(),rect.height())
@@ -124,6 +178,7 @@ class CodeEditor(QPlainTextEdit):
     def resizeEvent(self,event):
         super().resizeEvent(event)
         self.gutter.setGeometry(0,0,self.viewportMargins().left(),self.height())
+        if USE_REQON_UI and hasattr(self,'presentation'):self.presentation.layout_banner()
     def paint_numbers(self,event):
         painter = QPainter(self.gutter); painter.fillRect(event.rect(),QColor(getattr(self,'gutter_color','#212121')))
         painter.setFont(self.font()); painter.setPen(QColor('#777777'))
@@ -135,22 +190,42 @@ class CodeEditor(QPlainTextEdit):
                 painter.drawText(0,top,self.gutter.width()-8,self.fontMetrics().height(),Qt.AlignmentFlag.AlignRight,str(number+1))
             block=block.next(); top+=height; number+=1
     def format_json(self):
+        if USE_REQON_UI:return self.presentation.format_json()
         try: self.setPlainText(json.dumps(json.loads(self.toPlainText()),ensure_ascii=False,indent=2))
         except ValueError as error: QMessageBox.information(self,'Format JSON',str(error))
     def toggle_wrap(self):
-        self.setLineWrapMode(QPlainTextEdit.LineWrapMode.WidgetWidth if self.lineWrapMode()==QPlainTextEdit.LineWrapMode.NoWrap else QPlainTextEdit.LineWrapMode.NoWrap)
+        wrapping=self.lineWrapMode()==QPlainTextEdit.LineWrapMode.NoWrap
+        if USE_REQON_UI:self.setWordWrapMode(QTextOption.WrapMode.WrapAtWordBoundaryOrAnywhere if wrapping else QTextOption.WrapMode.NoWrap)
+        self.setLineWrapMode(QPlainTextEdit.LineWrapMode.WidgetWidth if wrapping else QPlainTextEdit.LineWrapMode.NoWrap)
+        button=getattr(self,'wrap_button',None)
+        if button:
+            button.setChecked(wrapping);button.setToolTip('Wrap lines: '+('On' if wrapping else 'Off'))
+    def wrap_control(self):
+        button=tool('wrap','Toggle line wrapping',self.toggle_wrap)
+        if USE_REQON_UI:
+            button.setObjectName('wrapLines');button.setCheckable(True)
+            button.setChecked(self.lineWrapMode()!=QPlainTextEdit.LineWrapMode.NoWrap)
+            button.setToolTip('Wrap lines: '+('On' if button.isChecked() else 'Off'))
+            button.setAccessibleName('Wrap lines');self.wrap_button=button
+        return button
 
 
 class PlaceholderDelegate(QStyledItemDelegate):
     def createEditor(self,parent,option,index):
         editor=super().createEditor(parent,option,index)
         # Keep the table model current while typing, without closing/recreating the editor.
-        if isinstance(editor,QLineEdit): editor.textEdited.connect(lambda _:self.commitData.emit(editor))
+        if isinstance(editor,QLineEdit):
+            editor.textEdited.connect(lambda _:self.commitData.emit(editor))
+            if hasattr(self.parent(),'variables_provider'):
+                from ui_editor_behavior import VariableCompletion
+                editor.completion=VariableCompletion(editor,self.parent().variables_provider)
         return editor
     def paint(self,painter,option,index):
+        active=USE_REQON_UI and index.row()==self.parent().currentRow()
+        if active:option.backgroundBrush=QColor(C['line'])
         if index.column()==0:
             painter.save()
-            painter.fillRect(option.rect,QColor('#212121'))
+            painter.fillRect(option.rect,QColor(C['line'] if active else color('#212121')))
             if index.data(Qt.ItemDataRole.CheckStateRole) is not None:
                 box=QRect(option.rect.center().x()-7,option.rect.center().y()-7,14,14)
                 checked=index.data(Qt.ItemDataRole.CheckStateRole)==Qt.CheckState.Checked.value
@@ -174,6 +249,7 @@ class KeyValueTable(QWidget):
         self.table.verticalHeader().hide(); self.table.verticalHeader().setDefaultSectionSize(33)
         self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectItems)
         self.table.setItemDelegate(PlaceholderDelegate(self.table)); self.table.setWordWrap(False)
+        if USE_REQON_UI:self.table.currentCellChanged.connect(lambda *_:self.table.viewport().update())
         header=self.table.horizontalHeader(); header.setMinimumSectionSize(36)
         header.setFixedHeight(33); header.setDefaultAlignment(Qt.AlignmentFlag.AlignLeft|Qt.AlignmentFlag.AlignVCenter)
         header.setSectionResizeMode(0,QHeaderView.ResizeMode.Fixed); self.table.setColumnWidth(0,42)

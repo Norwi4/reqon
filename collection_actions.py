@@ -1,13 +1,15 @@
 """Collection actions shared by context menus, hover controls and keyboard shortcuts."""
 import json
 from pathlib import Path
-from PySide6.QtCore import Qt, QPoint
+from PySide6.QtCore import Qt, QPoint, QSaveFile, QIODevice
 from PySide6.QtGui import QFont, QCursor
 from PySide6.QtWidgets import (QApplication, QTreeWidgetItem, QMenu, QInputDialog, QMessageBox,
     QDialog, QVBoxLayout, QLabel, QTreeWidget, QDialogButtonBox, QFileDialog, QTabBar, QToolTip)
 from collection_store import TABLES
 from ui_components import icon, tool
 from ui_collections import ROLE, STAR, PROTOCOL, CollectionPage, ExamplePage, CollectionMenu
+from ui_brand import USE_REQON_UI
+from ui_collections import METHOD,COUNT
 
 
 class CollectionActions:
@@ -37,6 +39,7 @@ class CollectionActions:
         self.tree.setCurrentItem(item); self.tree.scrollToItem(item)
 
     def refresh_tree(self):
+        counts=dict(self.store.all('SELECT collection_id,COUNT(*) FROM requests GROUP BY collection_id')) if USE_REQON_UI else {}
         current = self.tree.currentItem(); selected = current.data(0, ROLE)[:2] if current else None
         self.tree.blockSignals(True); self.tree.clear()
         def node(kind, id, name, parent):
@@ -47,14 +50,17 @@ class CollectionActions:
             item.setFlags(item.flags() | Qt.ItemFlag.ItemIsEditable | Qt.ItemFlag.ItemIsDragEnabled)
             if kind in ('request', 'example'): item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsDropEnabled)
             item.setToolTip(0, name)
-            font = QFont('Segoe UI'); font.setPixelSize(12); font.setWeight(QFont.Weight.DemiBold); item.setFont(0, font)
+            font = QFont('Inter' if USE_REQON_UI else 'Segoe UI'); font.setPixelSize(12)
+            font.setWeight(QFont.Weight.Normal if USE_REQON_UI else QFont.Weight.DemiBold);item.setFont(0,font)
             if kind == 'collection':
                 item.setData(0, STAR, row['starred'])
+                if USE_REQON_UI:item.setData(0,COUNT,counts.get(id,0))
             elif kind == 'folder': item.setIcon(0, icon('folder'))
             elif kind == 'example': item.setIcon(0, icon('example', '#a6a6a6'))
             else:
                 data = json.loads(row['data']); protocol = data.get('kind', 'http'); item.setData(0, PROTOCOL, protocol)
                 item.setIcon(0, icon(protocol, '#7ca8d9' if protocol == 'grpc' else '#79cdb4'))
+                if USE_REQON_UI:item.setData(0,METHOD,'gRPC' if protocol=='grpc' else data.get('method','GET'))
             if kind in ('collection', 'folder'):
                 for typ, child, title, _ in self.store.children(id if kind == 'collection' else row['collection_id'], None if kind == 'collection' else id):
                     node(typ, child, title, item)
@@ -77,6 +83,7 @@ class CollectionActions:
             self.store.db.execute(f'UPDATE {TABLES[kind]} SET expanded=? WHERE id=?', (int(expanded), id)); self.store.db.commit()
 
     def filter_tree(self, text):
+        if USE_REQON_UI:self.tree.search_query=text.strip();self.tree.viewport().update()
         query = text.casefold().strip(); self._filtering_tree = True
         def match(item, ancestor_match=False):
             direct = query in item.text(0).casefold()
@@ -91,6 +98,7 @@ class CollectionActions:
         try:
             for i in range(self.tree.topLevelItemCount()): match(self.tree.topLevelItem(i))
         finally: self._filtering_tree = False
+        if USE_REQON_UI and hasattr(self,'empty_states'):self.empty_states.schedule()
 
     def sync_tree_tabs(self):
         if not hasattr(self, 'workbench'): return
@@ -124,22 +132,25 @@ class CollectionActions:
 
     def open_item(self, item):
         kind, id, *_ = item.data(0, ROLE)
+        if USE_REQON_UI and kind=='collection':
+            if self.tree._branch_click:return
+            item.setExpanded(True);self.tree.setCurrentItem(item)
         if kind == 'folder': return
         for index in range(self.workbench.count()):
             page = self.workbench.widget(index)
             if (kind == 'request' and getattr(page, 'request_id', None) == id) or getattr(page, 'entity_key', None) == (kind, id):
-                self.workbench.setCurrentIndex(index); return
+                self.workbench.setCurrentIndex(index); return page
         if kind == 'collection': page = CollectionPage(self, id)
         elif kind == 'example': page = ExamplePage(self, id)
         else:
             row = self.store.entity(kind, id); data = json.loads(row['data'])
-            return (self.new_grpc_request if data.get('kind') == 'grpc' else self.new_request)(data, id, row['collection_id'], row['folder_id'])
+            return self.finish_sidebar_open((self.new_grpc_request if data.get('kind') == 'grpc' else self.new_request)(data, id, row['collection_id'], row['folder_id']))
         index = self.workbench.addTab(page, self.store.entity(kind, id)['name']); self.workbench.setCurrentIndex(index)
-        self.workbench.setTabIcon(index, icon('folder' if kind == 'collection' else 'example'))
+        self.workbench.setTabIcon(index, icon(('collection' if USE_REQON_UI else 'folder') if kind == 'collection' else 'example'))
         close = tool('close', 'Close tab', lambda: self.close_request_tab(self.workbench.indexOf(page))); close.setFixedSize(18, 18)
         self.workbench.tabBar().setTabButton(index, QTabBar.ButtonPosition.RightSide, close)
         self.attach_autosave(page)
-        return page
+        return self.finish_sidebar_open(page)
 
     def open_example_draft(self,data):
         page=ExamplePage(self,None,data)
@@ -162,6 +173,7 @@ class CollectionActions:
         if item: self.show_tree_menu(item, self.tree.viewport().mapToGlobal(pos))
         else:
             menu = QMenu(self); menu.addAction('New collection', self.new_collection); menu.addAction('Import', self.import_collection)
+            menu.addAction('Export collections…',self.export_collections)
             menu.popup(self.tree.viewport().mapToGlobal(pos)); self._tree_menu = menu
 
     def collection_menu(self, item):
@@ -227,13 +239,19 @@ class CollectionActions:
         self.store.delete_entity(kind, id); self.refresh_tree()
         if not self.workbench.count(): self.new_request()
 
-    def new_collection(self): self.create_collection('http')
+    def new_collection(self): return self.create_collection('http')
 
     def create_collection(self, kind):
-        name, ok = QInputDialog.getText(self, 'New collection', 'Collection name:', text='New Collection')
+        if USE_REQON_UI:
+            name,ok='New Collection',True
+            self.select_nav('Collections');self.search.clear()
+        else:name, ok = QInputDialog.getText(self, 'New collection', 'Collection name:', text='New Collection')
         if ok and name.strip():
             id = self.store.insert('collections', {'name': name.strip(), 'kind': kind})
-            self.refresh_tree(); self.select_tree_item('collection', id); self.open_item(self.tree_item('collection', id))
+            self.refresh_tree(); self.select_tree_item('collection', id); page=self.open_item(self.tree_item('collection', id))
+            if USE_REQON_UI:
+                page.title.setFocus(Qt.FocusReason.MouseFocusReason);page.title.selectAll()
+            return id
 
     def add_folder(self, cid, parent_id=None):
         id = self.store.insert('folders', {'collection_id': cid, 'parent_id': parent_id, 'name': 'New Folder'})
@@ -310,7 +328,7 @@ class CollectionActions:
 
     def open_local_link(self):
         clipboard = QApplication.clipboard().text()
-        text, ok = QInputDialog.getText(self, 'Open local link', 'getman:// link from this workspace:', text=clipboard if clipboard.startswith('getman://') else '')
+        text, ok = QInputDialog.getText(self, 'Open local link', 'reqon:// link from this workspace:', text=clipboard if clipboard.startswith(('reqon://','getman://')) else '')
         if not ok: return
         try:
             key = self.store.resolve_link(text); self.search.clear(); self.select_nav('Collections'); self.select_tree_item(*key); self.open_item(self.tree_item(*key))
@@ -336,11 +354,12 @@ class CollectionActions:
             if isinstance(page, GrpcPage) and page.collection_id == cid: page.source_changed()
 
     def import_collection(self):
-        path, _ = QFileDialog.getOpenFileName(self, 'Import collection', '', 'JSON (*.json)')
+        path, _ = QFileDialog.getOpenFileName(self, 'Import collections', '', 'JSON (*.json)')
         if not path: return
         try:
-            id = self.store.import_document(json.loads(Path(path).read_text(encoding='utf-8-sig')), Path(path).stem)
-            self.refresh_tree(); self.search.clear(); self.select_nav('Collections'); self.select_tree_item('collection', id)
+            ids = self.store.import_documents(json.loads(Path(path).read_text(encoding='utf-8-sig')), Path(path).stem)
+            self.refresh_tree(); self.search.clear(); self.select_nav('Collections'); self.select_tree_item('collection', ids[0])
+            self.statusBar().showMessage(f'Imported {len(ids)} collection(s)',4000)
         except Exception as error: QMessageBox.critical(self, 'Import failed', str(error))
 
     def export_collection(self, cid=None):
@@ -352,6 +371,25 @@ class CollectionActions:
             if not ok: return
             cid = collections[labels.index(chosen)][0]
         self.export_item('collection', cid)
+
+    def export_collections(self):
+        from ui_collection_export import CollectionExportDialog
+        if not self.flush_all():return
+        dialog=CollectionExportDialog(self)
+        if not dialog.exec():return
+        if not self.flush_all():return
+        try:
+            document=self.store.export_documents(dialog.selected_ids())
+            path,_=QFileDialog.getSaveFileName(self,'Export collections','Reqon.reqon_collections.json','JSON (*.json)')
+            if not path:return
+            payload=json.dumps(document,ensure_ascii=False,indent=2).encode('utf-8')
+            file=QSaveFile(path)
+            if not file.open(QIODevice.OpenModeFlag.WriteOnly):raise OSError(file.errorString())
+            if file.write(payload)!=len(payload):
+                error=file.errorString();file.cancelWriting();raise OSError(error)
+            if not file.commit():raise OSError(file.errorString())
+            self.statusBar().showMessage(f'Exported {len(document["collections"])} collection(s)',4000)
+        except Exception as error:QMessageBox.critical(self,'Export failed',str(error))
 
     def export_item(self, kind, id):
         if not self.flush_all():return
@@ -369,7 +407,7 @@ class CollectionActions:
                 if native: document['name'] = row['name']
                 else: document['info']['name'] = row['name']
             filename = ''.join('_' if c in '<>:"/\\|?*' else c for c in row['name'])
-            suffix = '.getman_collection.json' if native else '.postman_collection.json'
+            suffix = '.reqon_collection.json' if native else '.postman_collection.json'
             path, _ = QFileDialog.getSaveFileName(self, 'Export '+kind, filename+suffix, 'JSON (*.json)')
             if path: Path(path).write_text(json.dumps(document, ensure_ascii=False, indent=2), encoding='utf-8')
         except Exception as error: QMessageBox.critical(self, 'Export failed', str(error))

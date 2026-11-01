@@ -1,4 +1,5 @@
 """Live native code-snippet sidebar."""
+from ui_brand import stylesheet
 from PySide6.QtCore import Qt, QTimer, Signal
 from PySide6.QtGui import QColor, QSyntaxHighlighter, QTextCharFormat, QTextOption
 from PySide6.QtWidgets import QFrame, QVBoxLayout, QHBoxLayout, QLabel, QApplication, QPlainTextEdit
@@ -31,11 +32,12 @@ class CodeSnippetPanel(QFrame):
         head.addWidget(self.close_button); head.setContentsMargins(0,8,0,8); layout.addLayout(head)
         bar=QHBoxLayout(); bar.setContentsMargins(12,9,4,9)
         self.language=QLabel('gRPCurl'); self.language.setObjectName('muted'); bar.addWidget(self.language); bar.addStretch()
+        self.import_button=tool('download','Import cURL or gRPCurl',window.show_import_dialog,'Import'); bar.addWidget(self.import_button)
         self.copy_button=tool('copy','Copy code snippet',self.copy); bar.addWidget(self.copy_button); layout.addLayout(bar)
         self.editor=CodeEditor(readonly=True); self.editor.setLineWrapMode(QPlainTextEdit.LineWrapMode.WidgetWidth)
         self.editor.setWordWrapMode(QTextOption.WrapMode.WrapAnywhere)
         self.editor.highlighter.setDocument(None); self.editor.highlighter=ShellSyntax(self.editor.document())
-        self.editor.setStyleSheet('QPlainTextEdit#codeEditor { font-size:12px; background:#262626; }')
+        self.editor.setStyleSheet(stylesheet('QPlainTextEdit#codeEditor { font-size:12px; background:#262626; }'))
         self.editor.gutter_color='#262626'
         layout.addWidget(self.editor); layout.addStretch(1)
         self.message=QLabel(); self.message.setWordWrap(True); self.message.setObjectName('muted'); layout.addWidget(self.message)
@@ -54,7 +56,7 @@ class CodeSnippetPanel(QFrame):
             self.command=''; self.editor.clear(); self.message.setText('Open an HTTP or gRPC request to generate a command.'); self.copy_button.setEnabled(False); return
         self.language.setText('gRPCurl' if page.kind=='grpc' else 'cURL')
         try:
-            label,command=generate_snippet(page.collect(),self.window.variables(page.collection_id))
+            label,command=generate_snippet(page.runtime_data_provider(),self.window.variables(page.collection_id))
             self.language.setText(label); self.command=command
             if self.editor.toPlainText()!=command:self.editor.setPlainText(command)
             self.fit_timer.start(0)

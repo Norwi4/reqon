@@ -118,7 +118,7 @@ class CollectionDataTests(unittest.TestCase):
             try:
                 self.assertEqual(migrated.entity('request', 3)['name'], 'Original')
                 self.assertIsNone(migrated.entity('folder', 2)['parent_id'])
-                self.assertTrue((Path(directory)/'getman.before-0.6.sqlite3').is_file())
+                self.assertTrue((Path(directory)/'reqon.before-0.6.sqlite3').is_file())
                 self.assertEqual(migrated.children(1, 2)[0][2], 'Original')
             finally: migrated.db.close()
 

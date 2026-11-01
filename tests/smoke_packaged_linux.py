@@ -38,27 +38,27 @@ def check_resizing(window):
     wait_size(before['WIDTH'],before['HEIGHT'])
     print('Installed Linux package: real mouse resize passed for all 8 sides/corners; maximize/restore passed.')
 
-with tempfile.TemporaryDirectory(prefix='getman-package-') as directory:
+with tempfile.TemporaryDirectory(prefix='reqon-package-') as directory:
     for attempt in range(2):
         log=Path(directory)/f'run-{attempt}.log'
         with log.open('w') as output:
-            process=subprocess.Popen(['/usr/bin/getman','--data-dir',directory],stdout=output,stderr=subprocess.STDOUT)
+            process=subprocess.Popen(['/usr/bin/reqon','--data-dir',directory],stdout=output,stderr=subprocess.STDOUT)
             try:
                 deadline=time.monotonic()+90; window=None
                 while time.monotonic()<deadline and process.poll() is None:
                     # Openbox may still be starting when the application process is launched.
                     listing=subprocess.run(['wmctrl','-l'],text=True,stdout=subprocess.PIPE,stderr=subprocess.DEVNULL)
                     lines=listing.stdout.splitlines() if listing.returncode==0 else []
-                    window=next((line.split()[0] for line in lines if 'Getman' in line),None)
+                    window=next((line.split()[0] for line in lines if 'Reqon' in line or 'Getman' in line),None)
                     if window:break
                     time.sleep(.2)
                 assert window,log.read_text()
-                if attempt==0 and os.environ.get('GETMAN_TEST_RESIZE')=='1':check_resizing(window)
+                if attempt==0 and os.environ.get('REQON_TEST_RESIZE')=='1':check_resizing(window)
                 subprocess.run(['wmctrl','-i','-c',window],check=True)
                 assert process.wait(timeout=30)==0,log.read_text()
             finally:
                 if process.poll() is None:process.kill();process.wait()
-        db=sqlite3.connect(Path(directory)/'getman.sqlite3')
+        db=sqlite3.connect(Path(directory)/'reqon.sqlite3')
         assert db.execute('PRAGMA integrity_check').fetchone()[0]=='ok'
         session=json.loads(db.execute("SELECT data FROM workspace_state WHERE key='session'").fetchone()[0])
         assert len(session['tabs'])==1,session
