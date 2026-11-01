@@ -42,7 +42,7 @@ with tempfile.TemporaryDirectory(prefix='reqon-package-') as directory:
     for attempt in range(2):
         log=Path(directory)/f'run-{attempt}.log'
         with log.open('w') as output:
-            process=subprocess.Popen(['/usr/bin/reqon','--data-dir',directory],stdout=output,stderr=subprocess.STDOUT)
+            process=subprocess.Popen([os.environ.get('REQON_EXECUTABLE','/usr/bin/reqon'),'--data-dir',directory],stdout=output,stderr=subprocess.STDOUT)
             try:
                 deadline=time.monotonic()+90; window=None
                 while time.monotonic()<deadline and process.poll() is None:
@@ -64,6 +64,6 @@ with tempfile.TemporaryDirectory(prefix='reqon-package-') as directory:
         assert len(session['tabs'])==1,session
         request=json.loads(db.execute('SELECT data FROM local_drafts ORDER BY rowid DESC LIMIT 1').fetchone()[0])
         assert request['tls_verify'] is False,request
-        assert request['grpc_max_response_mb']==10 and request['grpc_timeout_ms']==0,request
+        assert request['grpc_max_response_mb']==50 and request['grpc_timeout_ms']==0,request
         db.close()
     print('Installed Linux package: native X11 startup, close and tab restoration passed twice.')

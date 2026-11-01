@@ -1,3 +1,4 @@
+from ui_brand import PROTOCOL_COLORS
 from PySide6.QtCore import Qt, QSize, QEvent, QObject, QUrl, QRectF
 from PySide6.QtGui import QDesktopServices, QFont, QPainterPath, QRegion
 from PySide6.QtWidgets import (QWidget,QFrame,QVBoxLayout,QHBoxLayout,QLabel,QLineEdit,
@@ -86,8 +87,8 @@ def build_shell(window):
     head=QHBoxLayout(workspace_head); head.setContentsMargins(14,0,8,0); head.setSpacing(4)
     head.addWidget(tool('workspace','Local workspace')); workspace_name=QLabel('My Workspace'); workspace_name.setStyleSheet(stylesheet('font-weight:600')); head.addWidget(workspace_name); head.addStretch()
     window.new_menu=QMenu(window)
-    window.new_menu.addAction(icon('http','#79cdb4'),'HTTP request',lambda:window.new_request())
-    window.new_menu.addAction(icon('grpc','#7ca8d9'),'gRPC request',lambda:window.new_grpc_request())
+    window.new_menu.addAction(icon('http',PROTOCOL_COLORS['http']),'HTTP request',lambda:window.new_request())
+    window.new_menu.addAction(icon('grpc',PROTOCOL_COLORS['grpc']),'gRPC request',lambda:window.new_grpc_request())
     window.new_menu.addSeparator(); window.new_menu.addAction(icon('collection'),'Collection',window.new_collection)
     new=QPushButton('New'); new.setObjectName('smallButton'); new.clicked.connect(lambda:window.new_menu.exec(new.mapToGlobal(new.rect().bottomLeft()))); head.addWidget(new)
     imp=QPushButton('Import'); imp.setObjectName('smallButton'); imp.clicked.connect(lambda:window.environments.import_file() if USE_REQON_UI and window.side_tabs.currentWidget() is window.environments.sidebar else window.show_import_dialog()); head.addWidget(imp)

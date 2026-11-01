@@ -1,4 +1,5 @@
 """Connect General preferences to existing tabs, editors and local persistence."""
+from ui_brand import PROTOCOL_COLORS
 from PySide6.QtCore import Qt,QSignalBlocker
 from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import QApplication,QLineEdit,QMessageBox
@@ -19,7 +20,7 @@ class GeneralController:
         if index<0:return
         if not self.general_preferences.config.tab_icons:self.workbench.setTabIcon(index,QIcon());return
         kind=getattr(page,'kind',None) or ('environment' if getattr(page,'is_environment_page',False) else getattr(page,'entity_key',('http',))[0])
-        self.workbench.setTabIcon(index,icon(kind,'#7ca8d9' if kind=='grpc' else '#79cdb4' if kind=='http' else '#aab2bd'))
+        self.workbench.setTabIcon(index,icon(kind,PROTOCOL_COLORS.get(kind,'#aab2bd')))
 
     def configure_general_page(self,page):
         from ui_pages import GrpcPage

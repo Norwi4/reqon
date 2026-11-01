@@ -1,4 +1,5 @@
 """Collection actions shared by context menus, hover controls and keyboard shortcuts."""
+from ui_brand import PROTOCOL_COLORS
 import json
 from pathlib import Path
 from PySide6.QtCore import Qt, QPoint, QSaveFile, QIODevice
@@ -59,7 +60,7 @@ class CollectionActions:
             elif kind == 'example': item.setIcon(0, icon('example', '#a6a6a6'))
             else:
                 data = json.loads(row['data']); protocol = data.get('kind', 'http'); item.setData(0, PROTOCOL, protocol)
-                item.setIcon(0, icon(protocol, '#7ca8d9' if protocol == 'grpc' else '#79cdb4'))
+                item.setIcon(0, icon(protocol, PROTOCOL_COLORS[protocol]))
                 if USE_REQON_UI:item.setData(0,METHOD,'gRPC' if protocol=='grpc' else data.get('method','GET'))
             if kind in ('collection', 'folder'):
                 for typ, child, title, _ in self.store.children(id if kind == 'collection' else row['collection_id'], None if kind == 'collection' else id):
@@ -186,7 +187,7 @@ class CollectionActions:
             cid = id if kind == 'collection' else row['collection_id']; fid = id if kind == 'folder' else None
             add = menu.addMenu('Add request'); add.setObjectName('collectionSubmenu'); add.setMinimumWidth(180)
             for label, protocol in [('HTTP', 'http'), ('gRPC', 'grpc')]:
-                act = add.addAction(icon(protocol, '#7ca8d9' if protocol == 'grpc' else '#79cdb4'), label)
+                act = add.addAction(icon(protocol, PROTOCOL_COLORS[protocol]), label)
                 act.triggered.connect(lambda checked=False, protocol=protocol: self.add_tree_request(cid, fid, protocol))
             action('Add folder', lambda: self.add_folder(cid, fid))
         elif kind == 'request': action('Add example', lambda: self.add_example(id))

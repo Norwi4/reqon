@@ -2,12 +2,12 @@ import json
 import re
 from pathlib import Path
 from PySide6.QtCore import Qt, Signal, QThread, QSize, Slot, QObject, QTimer, QStandardPaths
-from PySide6.QtGui import QFont,QColor
+from PySide6.QtGui import QFont
 from PySide6.QtWidgets import (QWidget, QFrame, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit,
     QPushButton, QToolButton, QMenu, QComboBox, QTabWidget, QSplitter, QFormLayout,
     QFileDialog, QApplication, QDialog, QListWidget, QMessageBox, QScrollArea,
     QTableWidget, QTableWidgetItem, QHeaderView, QAbstractItemView, QSizePolicy,QStackedWidget)
-from ui_components import icon, tool, CodeEditor, KeyValueTable, Select as QComboBox, MethodButton, ProtocolButton
+from ui_components import icon, tool, CodeEditor, KeyValueTable, Select as QComboBox, MethodButton
 from shiboken6 import isValid
 from grpc_support import discover_contract, describe_method, reflection_error, compile_proto, example_message
 from grpc_picker import MethodSelector
@@ -15,7 +15,8 @@ from ui_tls import TLSButton
 from ui_grpc_settings import settings_tab
 from request_transport import TLSOptions, grpc_metadata
 from ui_response_error import StatusBadge,ErrorPanel
-from ui_brand import USE_REQON_UI,METHOD_COLORS,TAB_HEIGHT,stylesheet
+from ui_brand import USE_REQON_UI,PROTOCOL_COLORS,TAB_HEIGHT,stylesheet
+from ui_request_selectors import HttpMethodSelect,RequestMenu,RequestProtocolButton
 if USE_REQON_UI:
     from ui_windows import RequestSplitter,ResponseEmpty,response_metrics,TabCorner
     from ui_error_states import decorate_failure,http_error_info
@@ -172,13 +173,12 @@ class BasePage(QWidget):
         self.request_id=request_id; self.collection_id=None; self.folder_id=None; self.busy=False
         self.layout_root=QVBoxLayout(self); self.layout_root.setContentsMargins(0,0,0,0); self.layout_root.setSpacing(0)
         title=QWidget(); title.setFixedHeight(48); title_row=row(title,(16,0,16,0),8)
-        self.protocol=ProtocolButton(); self.protocol.setToolTip('Switch request type: HTTP / gRPC'); self.protocol.setObjectName('protocolButton')
-        self.protocol.setIcon(icon(kind,'#7ca8d9' if kind=='grpc' else '#79cdb4')); self.protocol.setFixedSize(40,26)
-        menu=QMenu(self.protocol)
+        self.protocol=RequestProtocolButton(kind)
+        menu=RequestMenu(self.protocol)
         for label,value in [('HTTP','http'),('gRPC','grpc')]:
-            action=menu.addAction(icon(value,'#7ca8d9' if value=='grpc' else '#79cdb4'),label)
+            action=menu.addAction(icon(value,PROTOCOL_COLORS[value],16),label);action.setData(value)
             action.triggered.connect(lambda checked=False, value=value: self.switch_requested.emit(self,value) if self.kind!=value else None)
-        self.protocol.setMenu(menu); self.protocol.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
+        self.protocol.setMenu(menu)
         title_row.addWidget(self.protocol)
         self.name=QLineEdit(data['name']); self.name.setObjectName('requestName'); title_row.addWidget(self.name,1)
         self.save_state=QLabel('Saved locally'); title_row.addWidget(self.save_state)
@@ -229,13 +229,9 @@ class BasePage(QWidget):
 class RequestPage(BasePage):
     def __init__(self,data=None,request_id=None):
         d=dict(HTTP_DEFAULT,**(data or {})); super().__init__(d,request_id,'http')
-        self.method=QComboBox(); self.method.addItems(['GET','POST','PUT','PATCH','DELETE','HEAD','OPTIONS'])
+        self.method=HttpMethodSelect();self.address_layout.setContentsMargins(0,0,4,0)
         if self.method.findText(d['method'])<0:self.method.addItem(d['method'])
-        self.method.setCurrentText(d['method']); self.method.setFixedWidth(100); self.method.setStyleSheet(stylesheet('color:#8cd4a6;font-weight:600;'))
-        if USE_REQON_UI:
-            def method_color(value):self.method.setStyleSheet(f'color:{METHOD_COLORS.get(value,METHOD_COLORS["GET"])};font-weight:600;')
-            self.method.currentTextChanged.connect(method_color);method_color(self.method.currentText())
-            for index in range(self.method.count()):self.method.setItemData(index,QColor(METHOD_COLORS.get(self.method.itemText(index),METHOD_COLORS['GET'])),Qt.ItemDataRole.ForegroundRole)
+        self.method.setCurrentText(d['method'])
         self.address_layout.addWidget(self.method); self.divider()
         self.url=QLineEdit(d['url']); self.url.setPlaceholderText('Enter URL or paste text'); self.address_layout.addWidget(self.url,1)
         self.url.returnPressed.connect(lambda:self.send_requested.emit(self))

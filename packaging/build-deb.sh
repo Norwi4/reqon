@@ -2,7 +2,7 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 root="$(pwd -P)"
-version="${1:-0.13.4}"
+version="${1:-0.13.9}"
 [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo 'Expected a numeric x.y.z version' >&2; exit 1; }
 [[ "$(uname -s)" == Linux && "$(dpkg --print-architecture)" == amd64 ]] || { echo 'Build on Linux amd64' >&2; exit 1; }
 python_bin="${PYTHON:-python3}"
@@ -10,10 +10,13 @@ if [[ ! -x build/linux/venv/bin/python ]]; then "$python_bin" -m venv build/linu
 python_bin="$root/build/linux/venv/bin/python"
 "$python_bin" -m pip install -r requirements.txt
 "$python_bin" -m PyInstaller --noconfirm --clean --windowed --collect-data grpc_tools \
-    --add-data 'Reqon_Icon_Pack_Approved/linux/reqon.png:Reqon_Icon_Pack_Approved/linux' \
-    --add-data 'Reqon_Icon_Pack_Approved/png/transparent:Reqon_Icon_Pack_Approved/png/transparent' \
-    --add-data 'reqon-ui-states v2/dark:reqon-ui-states v2/dark' \
-    --add-data 'reqon-ui-states v2/manifest.json:reqon-ui-states v2' \
+    --add-data "$root/assets/fonts:assets/fonts" \
+    --copy-metadata PySocks --copy-metadata httpcore --copy-metadata jsonschema \
+    --collect-data jsonschema_specifications \
+    --add-data "$root/Reqon_Icon_Pack_Approved/linux/reqon.png:Reqon_Icon_Pack_Approved/linux" \
+    --add-data "$root/Reqon_Icon_Pack_Approved/png/transparent:Reqon_Icon_Pack_Approved/png/transparent" \
+    --add-data "$root/reqon-ui-states v2/dark:reqon-ui-states v2/dark" \
+    --add-data "$root/reqon-ui-states v2/manifest.json:reqon-ui-states v2" \
     --name Reqon --distpath dist/linux --workpath build/linux/pyinstaller --specpath build/linux main.py
 stage="$root/build/linux/deb-stage"
 [[ "$stage" == "$root/build/linux/deb-stage" && "$root" != / ]] || exit 1

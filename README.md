@@ -17,22 +17,22 @@
 - **Коллекции и окружения:** папки, переменные `{{name}}`, история запросов, сохранённые примеры ответов, импорт и экспорт коллекций. HTTP-коллекции совместимы с Postman v2.1; для смешанных HTTP/gRPC-коллекций используется формат Reqon.
 - **TLS:** настройки проверки сертификатов, собственный CA, клиентские сертификаты и переопределение имени сервера для запроса.
 
-В Windows 0.13.8 также доступны HTTP/2, локальные cookies, Proxy, импорт cURL/gRPCurl, проверка тела запроса по локальной JSON Schema и раздел General с настройками редактора, языка и автосохранения. Набор возможностей зависит от версии сборки; подробности — в [истории релизов](https://github.com/Norwi4/reqon/releases).
+Также доступны HTTP/2, локальные cookies, Proxy, импорт cURL/gRPCurl, проверка тела запроса по локальной JSON Schema и раздел General с настройками редактора, языка и автосохранения. HTTP-методы имеют цветовую маркировку; меню поддерживает ввод собственного метода.
 
 ## Скачать
 
 | Платформа | Версия | Установочный файл |
 | --- | --- | --- |
-| Windows x64 | **0.13.8** | [Скачать EXE](https://github.com/Norwi4/reqon/releases/download/v0.13.8/Reqon-Setup-0.13.8-win64.exe) |
-| Linux x86-64, glibc ≥ 2.36 | **0.13.4** | [Скачать TAR.GZ](https://github.com/Norwi4/reqon/releases/download/v0.13.4/Reqon-0.13.4-linux-x86_64.tar.gz) |
-| Astra Linux 1.8, amd64 | **0.13.2** | [Скачать DEB](https://github.com/Norwi4/reqon/releases/download/v0.13.2/getman_0.13.2_astra1.8_amd64.deb) |
+| Windows x64 | **0.13.9** | [Скачать EXE](https://github.com/Norwi4/reqon/releases/download/v0.13.9/Reqon-Setup-0.13.9-win64.exe) |
+| Linux x86-64, glibc ≥ 2.36 | **0.13.9** | [Скачать TAR.GZ](https://github.com/Norwi4/reqon/releases/download/v0.13.9/Reqon-0.13.9-linux-x86_64.tar.gz) |
+| Astra Linux 1.8, amd64 | **0.13.9** | [Скачать DEB](https://github.com/Norwi4/reqon/releases/download/v0.13.9/reqon_0.13.9_astra1.8_amd64.deb) |
 
 Все версии доступны в [GitHub Releases](https://github.com/Norwi4/reqon/releases) и в [архиве на сайте](https://reqon.ru/download/). Для установки выбирайте EXE, TAR.GZ или DEB из раздела **Assets**. Python в готовых сборках уже включён.
 
 На странице каждого релиза есть файл `SHA256SUMS.txt` для проверки скачанных файлов. Пример проверки Windows-установщика:
 
 ```powershell
-Get-FileHash .\Reqon-Setup-0.13.8-win64.exe -Algorithm SHA256
+Get-FileHash .\Reqon-Setup-0.13.9-win64.exe -Algorithm SHA256
 ```
 
 ### Windows
@@ -46,21 +46,21 @@ Get-FileHash .\Reqon-Setup-0.13.8-win64.exe -Algorithm SHA256
 Распакуйте архив в отдельную папку и запустите приложение:
 
 ```sh
-tar -xzf Reqon-0.13.4-linux-x86_64.tar.gz
+tar -xzf Reqon-0.13.9-linux-x86_64.tar.gz
 ./Reqon/reqon
 ```
 
 Нужны glibc ≥ 2.36 и графическая среда. Сохраняйте каталог `_internal` рядом с исполняемым файлом; при обновлении распаковывайте архив в новую папку. Данные находятся в `$XDG_DATA_HOME/Reqon` или `~/.local/share/Reqon`.
 
-Сборка подготовлена для ALT Linux 11 (p11). В 0.13.4 обновлены библиотеки Qt/PySide6/Shiboken; запуск на целевой Linux-системе пока не подтверждён. [Подробности выпуска](docs/linux-0.13.4.md).
+Используется Qt/PySide6 6.11.3. Архив собирается из того же приложения, что и пакет для Astra Linux 1.8.
 
 ### Astra Linux 1.8
 
 ```sh
-sudo apt install ./getman_0.13.2_astra1.8_amd64.deb
+sudo apt install ./reqon_0.13.9_astra1.8_amd64.deb
 ```
 
-Запускайте приложение из меню или командой `getman`: имя пакета и команды в этой архивной сборке сохранено. Пакет 0.13.2 содержит прежний комплект Qt; при ошибке `none_dealloc` используйте переносимую сборку 0.13.4.
+Запускайте приложение из меню или командой `reqon`. Команда `getman` сохранена для совместимости с прежними установками.
 
 ## Запуск из исходников
 
@@ -105,4 +105,4 @@ Windows: `powershell -File packaging/build-windows.ps1`. Скрипт созда
 python -X faulthandler -m unittest discover -s tests -p "test_*.py" -v
 ```
 
-Изменения Windows 0.13.8 описаны в [заметках к выпуску](docs/windows-0.13.8.md).
+Изменения 0.13.9 описаны в [заметках к выпуску](docs/release-0.13.9.md).

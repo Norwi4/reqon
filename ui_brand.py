@@ -6,7 +6,7 @@ from pathlib import Path
 IS_WINDOWS=sys.platform=='win32'
 USE_REQON_UI=sys.platform in ('win32','linux')
 DISPLAY_NAME='Reqon' if USE_REQON_UI else 'Getman'
-VERSION='0.13.4' if sys.platform=='linux' else '0.13.8' if IS_WINDOWS else '0.11.0'
+VERSION='0.13.9'
 TAB_HEIGHT=36  # Total logical height, including the one-pixel active underline.
 COLORS={
     'canvas':'#1f1f1f','panel':'#252525','hover':'#2b2b2b','selected':'#343434',
@@ -16,8 +16,9 @@ COLORS={
     'match':'#62401f','number':'#b5cea8','string':'#ce9178','key':'#9cdcfe',
     'success_bg':'#1e3a2d','warning_bg':'#463b28','warning':'#e7bf74',
 }
-METHOD_COLORS={'GET':'#89d6ae','POST':'#e7bf74','PUT':'#8db7f7','PATCH':'#c5a6ee',
-    'DELETE':'#f29a97','HEAD':'#89d5d5','OPTIONS':'#b6b8ec','gRPC':'#8db7f7'}
+METHOD_COLORS={'GET':'#73d3a6','POST':'#ffe47e','PUT':'#74aef6','PATCH':'#c0a8e1',
+    'DELETE':'#f69d90','HEAD':'#73d3a6','OPTIONS':'#ef63a3','gRPC':'#8ab2e0'}
+PROTOCOL_COLORS={'http':'#74c6cf','grpc':'#8ab2e0'}
 _LEGACY={'#212121':COLORS['canvas'],'#262626':COLORS['panel'],'#e6e6e6':COLORS['text'],
     '#ababab':COLORS['muted'],'#a6a6a6':COLORS['muted'],'#303030':COLORS['hover'],
     '#353535':COLORS['hover'],'#ff6c37':COLORS['accent'],'#0668d2':COLORS['action'],
