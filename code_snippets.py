@@ -37,15 +37,18 @@ def command_groups(data, variables=None):
     url,method,headers,body=prepare_http(data,variables)
     general=data.get('_general')
     if general:
-        names={key.lower() for key in headers}
-        if general.no_cache and 'cache-control' not in names:headers['Cache-Control']='no-cache'
-        if general.postman_token and 'postman-token' not in names:headers['Postman-Token']=str(__import__('uuid').uuid4())
+        from http_features import automatic_headers
+        headers.update({k:v for k,v in automatic_headers(data,url,headers,body).items() if k.lower() not in ('host','content-length')})
     settings=HTTPOptions.from_data(data,variables)
     groups=[['curl']]
     version=data.get('http_version')
     if version=='HTTP/2':groups.append(['--http2-prior-knowledge'])
     elif version=='HTTP/1.x':groups.append(['--http1.1'])
     if settings.follow_redirects:groups.append(['--location'])
+    if settings.follow_redirects and 'http_max_redirects' in data:groups.append(['--max-redirs',str(data['http_max_redirects'])])
+    if data.get('http_follow_original_method'):
+        groups.extend([[flag] for flag in ('--post301','--post302','--post303')])
+    if data.get('http_follow_auth'):groups.append(['--location-trusted'])
     groups.extend([['--globoff'],['--request',method],['--url',url],['--max-time',format(settings.timeout,'g')]])
     if not settings.verify:groups.append(['--insecure'])
     for flag,value in (('--cacert',settings.ca_file if settings.verify else ''),('--cert',settings.cert_file),('--key',settings.key_file)):
@@ -53,14 +56,26 @@ def command_groups(data, variables=None):
     if method=='HEAD':
         if body is not None:raise ValueError('Select Body: none to generate a cURL HEAD command.')
         groups.append(['--head'])
-    for key,value in headers.items():groups.append(['--header',f'{key}: {value}'])
+    for key,value in headers.items():
+        if data.get('body_type')=='form-data' and key.lower() in ('content-type','content-length'):continue
+        groups.append(['--header',f'{key}: {value}'])
     if any(key.lower()=='accept-encoding' and value.strip().lower()!='identity' for key,value in headers.items()):groups.append(['--compressed'])
-    if data.get('body_type')=='file':
+    if data.get('body_type') in ('file','binary'):
         name=expand(data.get('body_file',''),variables)
         if general:
             from general_settings import resolve_file
             name=str(resolve_file(name,general))
         groups.append(['--data-binary','@'+name])
+    elif data.get('body_type')=='form-data':
+        for row in data.get('multipart_rows',[]):
+            if not row[0] or len(row)>3 and not row[3]:continue
+            key=expand(row[0],variables);value=expand(row[1],variables);file=len(row)>4 and row[4]=='File'
+            if file:
+                from http_features import read_body_file
+                value=str(read_body_file(value,data,variables))
+                # curl's multipart syntax has its own quoting, inside shell quoting.
+                value='@"'+value.replace('\\','\\\\').replace('"','\\"')+'"'
+            groups.append(['--form' if file else '--form-string',key+'='+value])
     elif body is not None:groups.append(['--data-raw',body.decode('utf-8')])
     return 'cURL',groups
 

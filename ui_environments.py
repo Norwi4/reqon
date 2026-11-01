@@ -260,6 +260,7 @@ class EnvironmentController(QObject):
         for i in range(self.window.workbench.count()):
             page=self.window.workbench.widget(i)
             if isinstance(page,GrpcPage):page.source_changed()
+            if hasattr(page,'headers_panel'):page.headers_panel.schedule()
         self.window.snippet_panel.schedule()
     def rename(self,id):
         page=self.open(id);page.name.setFocus();page.name.selectAll()

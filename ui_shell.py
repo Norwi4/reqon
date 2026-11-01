@@ -73,7 +73,9 @@ def build_shell(window):
     top.addWidget(window.global_search)
     top.addStretch(1)
     local=QLabel('Local workspace'); local.setObjectName('localBadge'); top.addWidget(local)
-    window.settings_button=tool('settings','Settings',window.show_settings);top.addWidget(window.settings_button);top.addSpacing(12)
+    window.settings_button=tool('settings','Settings',window.show_settings);window.settings_button.setIconSize(QSize(21,21));window.settings_button.setFixedSize(36,36);top.addWidget(window.settings_button)
+    window.info_button=QPushButton('Info');window.info_button.setFixedSize(72,30);window.info_button.setCursor(Qt.CursorShape.PointingHandCursor)
+    window.info_button.setStyleSheet('QPushButton {background:#ff6c37;color:white;border:0;border-radius:4px;font-weight:600;} QPushButton:hover {background:#ff824f;}');window.info_button.clicked.connect(window.show_info);top.addWidget(window.info_button);top.addSpacing(8)
     for image,tip,fn in [('minimize','Minimize',window.showMinimized),('maximize','Maximize / Restore',titlebar.toggle_maximize),('close','Close',window.close)]:
         button=tool(image,tip,fn); button.setFixedSize(46,46)
         if image=='close':button.setObjectName('windowClose')
@@ -98,7 +100,7 @@ def build_shell(window):
     rail_layout=QVBoxLayout(rail); rail_layout.setContentsMargins(3,5,3,0); rail_layout.setSpacing(4)
     window.rail_group=QButtonGroup(window); window.rail_buttons={}
     for name,image in [('Collections','collection'),('Environments','environment'),('History','history')]:
-        button=tool(image,name,lambda checked=False,name=name:window.select_nav(name),name)
+        button=tool(image,name,lambda checked=False,name=name:window.select_nav(name,toggle=True),name)
         button.setObjectName('railButton'); button.setIconSize(QSize(18,18)); button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextUnderIcon)
         button.setFixedSize(70,52); button.setCheckable(True); window.rail_group.addButton(button); window.rail_buttons[name]=button; rail_layout.addWidget(button)
     window.rail_buttons['Collections'].setChecked(True); rail_layout.addStretch(); left_content.addWidget(rail)
@@ -123,6 +125,7 @@ def build_shell(window):
     window.history=QTreeWidget(); window.history.setHeaderHidden(True); window.history.itemDoubleClicked.connect(window.open_history)
     window.side_tabs.addTab(window.tree,'Collections'); window.side_tabs.addTab(window.history,'History'); sidebar_layout.addWidget(window.side_tabs)
     left_content.addWidget(sidebar,1); left_layout.addLayout(left_content,1); splitter.addWidget(left)
+    window.sidebar_container=left;window.sidebar_content=sidebar;window.sidebar_head=workspace_head;window._sidebar_collapsed=False;window._sidebar_width=378;window._active_nav='Collections'
     window.workbench=QTabWidget(); window.workbench.setObjectName('workbench'); window.workbench.setDocumentMode(True)
     if USE_REQON_UI:
         from ui_windows import RequestTabs,TabCorner
@@ -154,13 +157,17 @@ def build_shell(window):
     window.snippet_panel.close_requested.connect(window.hide_code_snippet); content.addWidget(window.snippet_panel)
     window.workbench.currentChanged.connect(window.snippet_panel.schedule)
     window.env_combo.currentIndexChanged.connect(window.snippet_panel.schedule)
-    outer.addLayout(content,1)
+    from ui_workspace_panels import ConsolePanel
+    work_area=QWidget();work_area.setLayout(content);work_area.setMinimumHeight(200)
+    window.console_splitter=QSplitter(Qt.Orientation.Vertical);window.console_splitter.setChildrenCollapsible(False);window.console_splitter.setHandleWidth(3)
+    window.console_splitter.addWidget(work_area);window.console_panel=ConsolePanel(window);window.console_splitter.addWidget(window.console_panel);window.console_splitter.setStretchFactor(0,1);window.console_splitter.setStretchFactor(1,0)
+    outer.addWidget(window.console_splitter,1)
     footer=QFrame(); footer.setObjectName('footer'); footer.setFixedHeight(25)
     bottom=QHBoxLayout(footer); bottom.setContentsMargins(10,0,12,0); bottom.setSpacing(12)
-    bottom.addWidget(tool('split','Toggle collections sidebar',lambda:left.setVisible(not left.isVisible())))
+    bottom.addWidget(tool('split','Toggle collections sidebar',window.toggle_sidebar))
     local=tool('check','All data is stored on this computer',text='Local'); bottom.addWidget(local)
     bottom.addWidget(tool('search','Find a request',lambda:window.search_palette.open() if USE_REQON_UI else window.global_search.setFocus(),text='Find'))
-    bottom.addWidget(tool('console','Request console',window.show_console,text='Console')); bottom.addStretch()
+    window.console_button=tool('console','Request console',window.show_console,text='Console');window.console_button.setCheckable(True);bottom.addWidget(window.console_button);bottom.addStretch()
     bottom.addWidget(tool('download','Export collection',window.export_collection,text='Export'))
     bottom.addWidget(tool('folder','Open local data folder',lambda:QDesktopServices.openUrl(QUrl.fromLocalFile(str(window.store.path.parent))),text='Local data'))
     for button in footer.findChildren(QToolButton):button.setStyleSheet(stylesheet('font-size:11px;padding:0;'));button.setIconSize(QSize(13,13))

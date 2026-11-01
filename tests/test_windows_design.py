@@ -108,6 +108,8 @@ class WindowsDesign(unittest.TestCase):
         self.assertEqual(self.window.workbench.tabText(self.window.workbench.indexOf(page)),'Working request')
         QTest.qWait(380);self.assertFalse(page._presentation_dirty)
         self.window.new_request();QTest.qWait(20);bar=self.window.workbench.tabBar()
+        # Establish the non-hover state independently of earlier mouse tests.
+        QTest.mouseMove(self.window.current_page().url);QTest.qWait(20)
         self.assertEqual(bar.tabButton(0,bar.ButtonPosition.RightSide).graphicsEffect().opacity(),0)
         self.assertEqual(bar.tabButton(1,bar.ButtonPosition.RightSide).graphicsEffect().opacity(),1)
         QTest.mouseMove(bar,bar.tabRect(0).center());QTest.qWait(20)

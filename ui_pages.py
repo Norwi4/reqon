@@ -236,28 +236,23 @@ class RequestPage(BasePage):
         self.url=QLineEdit(d['url']); self.url.setPlaceholderText('Enter URL or paste text'); self.address_layout.addWidget(self.url,1)
         self.url.returnPressed.connect(lambda:self.send_requested.emit(self))
         self.params=KeyValueTable(d.get('param_rows',d['params'])); self.tabs.addTab(self.params,'Params')
-        auth=QWidget(); form=QFormLayout(auth); form.setContentsMargins(24,24,24,24); form.setVerticalSpacing(20)
-        self.auth_type=QComboBox(); self.auth_type.addItems(['No Auth','Bearer Token','Basic Auth','API Key']); self.auth_type.setCurrentText(d['auth_type'])
-        self.auth_value=QLineEdit(d['auth_value']); self.auth_value.setPlaceholderText('Token, username:password, or header:value')
-        form.addRow('Auth Type',self.auth_type); form.addRow('Value',self.auth_value); self.tabs.addTab(auth,'Authorization')
-        self.headers=KeyValueTable(d.get('header_rows',d['headers'])); self.tabs.addTab(self.headers,'Headers')
-        body_widget=QWidget(); body_layout=QVBoxLayout(body_widget); body_layout.setContentsMargins(0,0,0,0); body_layout.setSpacing(0)
-        self.body_type=QComboBox(); self.body_type.addItems(['none','raw','x-www-form-urlencoded','file']); self.body_type.setCurrentText(d['body_type'])
-        options=row(margins=(16,8,16,8)); options.addWidget(self.body_type); options.addStretch(); body_layout.addLayout(options)
-        self.body=CodeEditor(d['body']); self.form=KeyValueTable(d.get('form_rows',d['form']))
-        self.body_panel=self.add_editor(self.body)
-        body_layout.addWidget(self.body_panel,1); body_layout.addWidget(self.form,1)
-        self.body_file_panel=QWidget();file_row=row(self.body_file_panel,(16,12,16,12))
-        self.body_file=QLineEdit(d.get('body_file',''));self.body_file.setPlaceholderText('Path relative to the working directory')
-        choose=QPushButton('Choose file');choose.clicked.connect(self.choose_body_file);file_row.addWidget(self.body_file,1);file_row.addWidget(choose);body_layout.addWidget(self.body_file_panel)
-        self.body_type.currentTextChanged.connect(self._body_mode); self._body_mode(self.body_type.currentText())
-        self.tabs.addTab(body_widget,'Body')
+        from ui_http_auth import AuthPanel
+        from ui_http_body import BodyPanel
+        from ui_http_headers import HeadersPanel
+        self.auth_panel=AuthPanel(d);self.auth_type=self.auth_panel.auth_type;self.auth_value=self.auth_panel.auth_value;self.tabs.addTab(self.auth_panel,'Auth')
+        self.headers_panel=HeadersPanel(self,d);self.headers=self.headers_panel.headers;self.tabs.addTab(self.headers_panel,'Headers')
+        self.body_modes=BodyPanel(self,d)
+        for name in ('body_type','body','form','body_file','body_file_panel'):setattr(self,name,getattr(self.body_modes,name))
+        self.body_panel=self.body;self.tabs.addTab(self.body_modes,'Body')
         from ui_http_settings import settings_tab as http_settings_tab
         self.tabs.addTab(http_settings_tab(self,d),'Settings')
         self.bulk=tool('docs','Bulk edit parameters',lambda:self.current_table().bulk_edit() if self.current_table() else None,'Bulk Edit')
         self.tabs.setCornerWidget(self.bulk)
         self.tabs.currentChanged.connect(lambda i:self.bulk.setVisible(self.current_table() is not None))
-        self.headers.changed.connect(lambda:self.tabs.setTabText(2,f'Headers ({len(self.headers.active_rows())})'))
+        for field in (self.url,self.method,self.auth_panel,self.headers_panel,self.body_modes,self.params):
+            signal=field.changed if hasattr(field,'changed') else field.textChanged if hasattr(field,'textChanged') else field.currentTextChanged
+            signal.connect(self.headers_panel.schedule)
+        QTimer.singleShot(0,self.headers_panel.refresh)
     def current_table(self):
         current=self.tabs.currentWidget(); return current if isinstance(current,KeyValueTable) else None
     def choose_body_file(self):
@@ -266,15 +261,14 @@ class RequestPage(BasePage):
         if path:
             root=Path(config.working_directory).resolve();selected=Path(path).resolve()
             self.body_file.setText(str(selected.relative_to(root) if selected.is_relative_to(root) else selected))
-    def _body_mode(self,mode):
-        self.body_panel.setVisible(mode=='raw');self.form.setVisible(mode=='x-www-form-urlencoded');self.body_file_panel.setVisible(mode=='file')
     def collect(self):
+        from ui_http_settings import collect_settings
         return {**{key:self.data[key] for key in ('imported_query','imported_query_params') if key in self.data},
+            **self.auth_panel.collect(),**self.body_modes.collect(),**collect_settings(self),
             'name':self.name.text().strip() or 'Untitled Request','method':self.method.currentText(),
             'url':self.url.text().strip(),'params':self.params.active_rows(),'param_rows':self.params.all_rows(),
             'headers':self.headers.active_rows(),'header_rows':self.headers.all_rows(),
-            'auth_type':self.auth_type.currentText(),'auth_value':self.auth_value.text(),
-            'body_type':self.body_type.currentText(),'body':self.body.toPlainText(),
+            'disabled_headers':sorted(self.headers_panel.disabled),
             'body_file':self.body_file.text(),'http_schema':self.http_schema.text(),'general_overrides':self.general_overrides.isChecked(),'http_version':self.http_version.currentText(),
             'form':self.form.active_rows(),'form_rows':self.form.all_rows(),
             'http_verify':self.http_verify.isChecked(),'http_follow_redirects':self.http_follow_redirects.isChecked(),
@@ -312,7 +306,7 @@ class GrpcPage(BasePage):
         auth=QWidget(); auth_form=QFormLayout(auth); auth_form.setContentsMargins(24,24,24,24); auth_form.setVerticalSpacing(20)
         self.auth_type=QComboBox(); self.auth_type.addItems(['No Auth','Bearer Token','Basic Auth','API Key']); self.auth_type.setCurrentText(d.get('auth_type','No Auth'))
         self.auth_value=QLineEdit(d.get('auth_value','')); self.auth_value.setPlaceholderText('Token, username:password, header:value or {{variable}}')
-        auth_form.addRow('Auth Type',self.auth_type); auth_form.addRow('Value',self.auth_value); self.tabs.addTab(auth,'Authorization')
+        auth_form.addRow('Auth Type',self.auth_type); auth_form.addRow('Value',self.auth_value); self.tabs.addTab(auth,'Auth')
         self.metadata=KeyValueTable(d.get('metadata_rows',d['metadata'])); self.tabs.addTab(self.metadata,'Metadata')
         self.metadata.changed.connect(self.metadata_count); self.metadata_count()
         definition=QWidget(); definition_layout=QVBoxLayout(definition); definition_layout.setContentsMargins(24,24,24,24); definition_layout.setSpacing(16)

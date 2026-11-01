@@ -28,6 +28,8 @@ class Autosave:
                     page.params,page.headers,page.form,page.http_verify,page.http_follow_redirects,page.http_timeout,
                     page.http_ca_file,page.http_cert_file,page.http_key_file]
             fields.extend([page.general_overrides,page.http_version,page.http_schema,page.body_file])
+            fields.extend(page.http_extra_fields.values())
+            for panel in (page.auth_panel,page.body_modes,page.headers_panel):panel.changed.connect(lambda page=page:self.queue_autosave(page))
         elif isinstance(page,GrpcPage):
             fields=[page.name,page.server,page.service,page.rpc_method,page.tls,page.auth_type,page.auth_value,
                     page.message,page.metadata,page.descriptor_file,page.tls_ca_file,page.tls_cert_file,page.tls_key_file,
@@ -42,7 +44,7 @@ class Autosave:
             elif hasattr(field,'toggled'):signal=field.toggled
             else:signal=field.valueChanged
             signal.connect(lambda *_,page=page:self.queue_autosave(page))
-        self.flush_page(page,force=True)
+        if not getattr(self,'_applying_command',False):self.flush_page(page,force=True)
 
     def set_save_status(self,page,text,error=False):
         if USE_REQON_UI:

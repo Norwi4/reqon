@@ -6,7 +6,7 @@ from pathlib import Path
 IS_WINDOWS=sys.platform=='win32'
 USE_REQON_UI=sys.platform in ('win32','linux')
 DISPLAY_NAME='Reqon' if USE_REQON_UI else 'Getman'
-VERSION='0.13.9'
+VERSION='0.14.0'
 TAB_HEIGHT=36  # Total logical height, including the one-pixel active underline.
 COLORS={
     'canvas':'#1f1f1f','panel':'#252525','hover':'#2b2b2b','selected':'#343434',

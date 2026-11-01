@@ -43,7 +43,7 @@ PATHS = {
     'lock_off': '<path d="m3 3 18 18M8 8V6a4 4 0 0 1 8 0v4M5 10v11h14v-5M11 10h8v3M12 14v3"/>',
     'code': '<path d="m7 6-5 6 5 6M17 6l5 6-5 6M14 3l-4 18"/>',
     'docs': '<path d="M4 4h16M4 9h16M4 14h10M4 19h10"/>',
-    'settings': '<path d="M12 3v3M12 18v3M3 12h3M18 12h3M6 6l2 2M16 16l2 2M6 18l2-2M16 8l2-2"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/>',
+    'settings': '<path d="M9.8 2.8h4.4l.5 2.5 1.5.9 2.4-.8 2.2 3.8-1.9 1.7v1.8l1.9 1.7-2.2 3.8-2.4-.8-1.5.9-.5 2.5H9.8l-.5-2.5-1.5-.9-2.4.8-2.2-3.8 1.9-1.7v-1.8L3.2 9.2l2.2-3.8 2.4.8 1.5-.9z"/><circle cx="12" cy="12" r="3.2"/>',
     'console': '<rect x="3" y="4" width="18" height="16" rx="1"/><path d="m7 9 3 3-3 3M13 16h4"/>',
     'format': '<path d="M5 3H3v18h2M19 3h2v18h-2M8 7h8M8 12h8M8 17h5"/>',
     'wrap': '<path d="M3 5h18M3 10h14a4 4 0 0 1 0 8h-5M3 15h4M14 15l-3 3 3 3"/>',

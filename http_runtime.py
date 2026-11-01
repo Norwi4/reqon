@@ -9,7 +9,6 @@ import socket
 import ssl
 import threading
 import time
-import uuid
 import zlib
 from pathlib import Path
 from urllib.parse import urlsplit,urljoin
@@ -63,8 +62,19 @@ class Exchange(httpcore.NetworkBackend):
 
 
 class Stream(httpcore.NetworkStream):
-    def __init__(self,connection,owner):self.socket=connection;self.owner=owner
-    def read(self,max_bytes,timeout=None):self.socket.settimeout(self.owner.remaining());return self.socket.recv(max_bytes)
+    def __init__(self,connection,owner):self.socket=connection;self.owner=owner;self._header_buffer=b'';self._headers_done=False
+    def read(self,max_bytes,timeout=None):
+        self.socket.settimeout(self.owner.remaining());value=self.socket.recv(max_bytes)
+        if getattr(self.owner,'strict_http',False) and not self._headers_done and not self.owner.require_h2 and not (isinstance(self.socket,ssl.SSLSocket) and self.socket.selected_alpn_protocol()=='h2'):
+            self._header_buffer+=value
+            while b'\r\n\r\n' in self._header_buffer:
+                head,self._header_buffer=self._header_buffer.split(b'\r\n\r\n',1)
+                lines=head.split(b'\r\n')
+                for line in lines[1:]:
+                    if line.startswith((b' ',b'\t')) or any(byte<32 and byte!=9 or byte==127 for byte in line):raise ValueError('Strict HTTP parser: invalid response header.')
+                if not re.match(rb'HTTP/1\.[01] 1\d\d ',lines[0]):self._headers_done=True;self._header_buffer=b'';break
+            if len(self._header_buffer)>65536:raise ValueError('Strict HTTP parser: response headers are too large.')
+        return value
     def write(self,buffer,timeout=None):self.socket.settimeout(self.owner.remaining());self.socket.sendall(buffer)
     def close(self):
         with self.owner.lock:self.owner.sockets.discard(self.socket);self.socket.close()
@@ -74,6 +84,7 @@ class Stream(httpcore.NetworkStream):
             old=self.socket;self.socket=ssl_context.wrap_socket(old,server_hostname=server_hostname,do_handshake_on_connect=False)
             self.owner.sockets.discard(old);self.owner.sockets.add(self.socket)
         self.socket.do_handshake()
+        self._header_buffer=b'';self._headers_done=False
         if self.owner.require_h2 and self.socket.selected_alpn_protocol()!='h2':raise ValueError('The server did not negotiate HTTP/2. Select Auto or HTTP/1.x in General.')
         return self
     def get_extra_info(self,info):
@@ -162,22 +173,25 @@ def _send_http(data,variables,proxy,cookies,cancellation,contexts):
     started=time.monotonic();config=data['_general'];options=HTTPOptions.from_data(data,variables)
     deadline=started+options.timeout if options.timeout else None
     version=data.get('http_version',config.http_version)
-    url,method,headers,body=prepare_http(data,variables)
-    if data.get('body_type')=='file':body=resolve_file(expand(data.get('body_file',''),variables),config).read_bytes()
-    lower={key.lower() for key in headers}
-    if config.no_cache and 'cache-control' not in lower:headers['Cache-Control']='no-cache'
-    if config.postman_token and 'postman-token' not in lower:headers['Postman-Token']=str(uuid.uuid4())
+    from http_features import automatic_headers,configure_tls
+    url,method,headers,body=prepare_http(data,variables,load_files=True)
+    headers.update(automatic_headers(data,url,headers,body))
     validate_schema(dict(data,_headers=headers),variables,config,url,body)
     context=ssl.create_default_context() if options.verify else ssl._create_unverified_context();contexts.append(context);context.keylog_filename=data.get('_tls_keylog')
     if options.ca_file and options.verify:context.load_verify_locations(cafile=str(Path(options.ca_file).expanduser()))
     load_client_identity(context,options)
-    for redirect in range(21):
+    configure_tls(context,data,variables)
+    max_redirects=int(data.get('http_max_redirects',10))
+    if not 0<=max_redirects<=100:raise ValueError('Maximum redirects must be between 0 and 100.')
+    use_cookies=cookies and not data.get('http_disable_cookies',config.disable_cookies)
+    for redirect in range(max_redirects+1):
         request=Request(url,data=body,headers=headers,method=method)
-        if cookies and not config.disable_cookies:cookies.headers(request)
+        if use_cookies:cookies.headers(request)
         route=resolve_proxy(url,proxy)
         tunnel=route if route and (route.protocol!='http' or version=='HTTP/2' and urlsplit(url).scheme=='http') else None
         exchange=Exchange(deadline,tunnel)
         exchange.require_h2=version=='HTTP/2'
+        exchange.strict_http=data.get('http_strict_parser',False)
         kwargs=dict(ssl_context=context,http1=version!='HTTP/2',http2=version!='HTTP/1.x',network_backend=exchange,max_connections=1)
         if route and route.protocol=='http' and not tunnel:
             pool=httpcore.HTTPProxy('http://'+route.authority,proxy_auth=(route.username,route.password) if route.username else None,**kwargs)
@@ -190,14 +204,17 @@ def _send_http(data,variables,proxy,cookies,cancellation,contexts):
                 if version=='HTTP/2' and actual!='HTTP/2':raise ValueError('The server did not negotiate HTTP/2. Select Auto or HTTP/1.x in General.')
                 message=email.message.Message()
                 for key,value in response.headers:message[key.decode('latin-1')]=value.decode('latin-1')
-                if cookies and not config.disable_cookies:cookies.receive(request,message)
+                if use_cookies:cookies.receive(request,message)
                 if options.follow_redirects and response.status in (301,302,303,307,308) and message.get('Location'):
-                    if redirect==20:raise ValueError('Too many redirects (limit: 20).')
+                    if redirect==max_redirects:raise ValueError(f'Too many redirects (limit: {max_redirects}).')
                     target=urljoin(url,message['Location']);old=urlsplit(url);new=urlsplit(target)
                     if new.scheme not in ('http','https'):raise ValueError('Unsupported redirect protocol.')
                     if (old.scheme,old.hostname,old.port)!=(new.scheme,new.hostname,new.port):
-                        headers={key:value for key,value in headers.items() if key.lower() not in ('authorization','cookie','host','proxy-authorization')}
-                    if response.status==303 and method!='HEAD' or response.status in (301,302) and method=='POST':
+                        excluded={'cookie','host','proxy-authorization'}
+                        if not data.get('http_follow_auth'):excluded.add('authorization')
+                        headers={key:value for key,value in headers.items() if key.lower() not in excluded};headers['Host']=new.netloc
+                    if data.get('http_remove_referer'):headers={key:value for key,value in headers.items() if key.lower()!='referer'}
+                    if not data.get('http_follow_original_method') and (response.status==303 and method!='HEAD' or response.status in (301,302) and method=='POST'):
                         method='GET';body=None;headers={k:v for k,v in headers.items() if k.lower() not in ('content-length','content-type','transfer-encoding')}
                     url=target;continue
                 limit=config.max_response_mb*1024*1024

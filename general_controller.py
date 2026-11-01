@@ -32,12 +32,14 @@ class GeneralController:
         page.general_overrides.toggled.connect(lambda:self.apply_general_page(page))
         page.runtime_data_provider=lambda:effective_request(page.collect(),self.general_preferences.config,self.store.path.parent)
         provider=lambda:self.variables(page.collection_id)
+        page.variables_provider=provider
+        if hasattr(page,'headers_panel'):self.env_combo.currentIndexChanged.connect(page.headers_panel.schedule)
         for editor in [*page.findChildren(CodeEditor),*[getattr(page,name) for name in ('url','server','auth_value') if hasattr(page,name)]]:
             if isinstance(editor,QLineEdit) or not editor.isReadOnly():editor.completion=VariableCompletion(editor,provider)
         for table in page.findChildren(KeyValueTable):table.variables_provider=provider
         page.response.editor.link_callback=lambda url:self.open_response_link(page,url)
         self.apply_general_page(page)
-        names=('tls_verify','grpc_timeout_ms','grpc_max_response_mb') if isinstance(page,GrpcPage) else ('http_verify','http_timeout','http_follow_redirects','http_version')
+        names=('tls_verify','grpc_timeout_ms','grpc_max_response_mb') if isinstance(page,GrpcPage) else ('http_verify','http_timeout','http_follow_redirects','http_version','http_disable_cookies')
         for name in names:
             field=getattr(page,name)
             signal=field.toggled if hasattr(field,'toggled') else field.currentIndexChanged if hasattr(field,'currentIndexChanged') else field.valueChanged if hasattr(field,'valueChanged') else field.textChanged
@@ -48,11 +50,11 @@ class GeneralController:
         config=self.general_preferences.config
         if isinstance(page,(RequestPage,GrpcPage)):
             if isinstance(page,RequestPage):
-                fields=[(page.http_verify,config.verify_ssl),(page.http_timeout,config.timeout_ms/1000),(page.http_follow_redirects,config.follow_redirects),(page.http_version,config.http_version)]
+                fields=[(page.http_verify,config.verify_ssl),(page.http_timeout,config.timeout_ms/1000),(page.http_follow_redirects,config.follow_redirects),(page.http_version,config.http_version),(page.http_disable_cookies,config.disable_cookies)]
             else:fields=[(page.tls_verify,config.verify_ssl),(page.grpc_timeout_ms,config.timeout_ms),(page.grpc_max_response_mb,config.max_response_mb)]
             override=page.general_overrides.isChecked()
             for field,value in fields:
-                field.setEnabled(override)
+                field.setEnabled(override or isinstance(page,RequestPage))
                 if not override:
                     with QSignalBlocker(field):
                         if hasattr(field,'setChecked'):field.setChecked(value)
@@ -63,6 +65,7 @@ class GeneralController:
             page.split.handle(1).setCursor(Qt.CursorShape.SplitHCursor if config.two_pane else Qt.CursorShape.SplitVCursor)
             page.response.format_config=config
             if hasattr(page,'last_response'):page.response.show_response(page.last_response)
+            if hasattr(page,'headers_panel'):page.headers_panel.schedule()
         from ui_components import CodeEditor
         from ui_response_error import ErrorDetails
         for editor in [*page.findChildren(CodeEditor),*page.findChildren(ErrorDetails)]:
@@ -76,6 +79,7 @@ class GeneralController:
         config=self.general_preferences.config;previous=self._previous_general;self._previous_general=config
         network_changed=any(getattr(config,key)!=getattr(previous,key) for key in ('verify_ssl','tls_keylog','timeout_ms','max_response_mb'))
         QApplication.instance().reqon_general=config
+        self.snippet_panel.schedule()
         for index in range(self.workbench.count()):
             page=self.workbench.widget(index);self.apply_general_page(page)
             if network_changed and hasattr(page,'source_changed'):page.source_changed()

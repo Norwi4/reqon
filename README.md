@@ -12,18 +12,20 @@
 
 ## Возможности
 
-- **HTTP:** методы, query-параметры, заголовки, Bearer / Basic / API Key, JSON, текст и формы, просмотр тела и заголовков ответа.
+- **HTTP:** методы, query-параметры, заголовки, Bearer / Basic / JWT / API Key, JSON, текст, multipart/form-data, файлы и GraphQL, просмотр тела и заголовков ответа.
 - **gRPC:** поиск сервисов через reflection, импорт `.proto` и descriptor set, unary и streaming RPC, metadata, trailers и примеры сообщений по protobuf-контракту.
 - **Коллекции и окружения:** папки, переменные `{{name}}`, история запросов, сохранённые примеры ответов, импорт и экспорт коллекций. HTTP-коллекции совместимы с Postman v2.1; для смешанных HTTP/gRPC-коллекций используется формат Reqon.
 - **TLS:** настройки проверки сертификатов, собственный CA, клиентские сертификаты и переопределение имени сервера для запроса.
 
 Также доступны HTTP/2, локальные cookies, Proxy, импорт cURL/gRPCurl, проверка тела запроса по локальной JSON Schema и раздел General с настройками редактора, языка и автосохранения. HTTP-методы имеют цветовую маркировку; меню поддерживает ввод собственного метода.
 
+Команды cURL/gRPCurl можно редактировать прямо в боковой панели: изменения применяются к текущему запросу автоматически. Вкладка Auth содержит отдельные формы авторизации, а Headers позволяет раскрыть автоматически создаваемые заголовки. Консоль запросов открывается в нижней части окна. Кнопка **Info** показывает версию приложения и ссылку для сообщения об ошибках.
+
 ## Скачать
 
 | Платформа | Версия | Установочный файл |
 | --- | --- | --- |
-| Windows x64 | **0.13.9** | [Скачать EXE](https://github.com/Norwi4/reqon/releases/download/v0.13.9/Reqon-Setup-0.13.9-win64.exe) |
+| Windows x64 | **0.14.0** | [Скачать EXE](https://github.com/Norwi4/reqon/releases/download/v0.14.0/Reqon-Setup-0.14.0-win64.exe) |
 | Linux x86-64, glibc ≥ 2.36 | **0.13.9** | [Скачать TAR.GZ](https://github.com/Norwi4/reqon/releases/download/v0.13.9/Reqon-0.13.9-linux-x86_64.tar.gz) |
 | Astra Linux 1.8, amd64 | **0.13.9** | [Скачать DEB](https://github.com/Norwi4/reqon/releases/download/v0.13.9/reqon_0.13.9_astra1.8_amd64.deb) |
 
@@ -32,7 +34,7 @@
 На странице каждого релиза есть файл `SHA256SUMS.txt` для проверки скачанных файлов. Пример проверки Windows-установщика:
 
 ```powershell
-Get-FileHash .\Reqon-Setup-0.13.9-win64.exe -Algorithm SHA256
+Get-FileHash .\Reqon-Setup-0.14.0-win64.exe -Algorithm SHA256
 ```
 
 ### Windows
@@ -106,4 +108,4 @@ python -m pip install -r requirements-test.txt
 python -X faulthandler -m unittest discover -s tests -p "test_*.py" -v
 ```
 
-Изменения 0.13.9 описаны в [заметках к выпуску](docs/release-0.13.9.md).
+Изменения 0.14.0 описаны в [заметках к выпуску](docs/release-0.14.0.md).

@@ -9,7 +9,7 @@ import ssl
 import gzip
 import zlib
 import urllib.request
-from urllib.parse import urlencode, urlsplit, urlunsplit
+from urllib.parse import urlencode, urlsplit, urlunsplit,quote
 from ui_brand import USE_REQON_UI
 if USE_REQON_UI:import json_comments
 
@@ -147,7 +147,7 @@ def grpc_metadata(data, variables):
     return metadata
 
 
-def prepare_http(data, variables):
+def prepare_http(data, variables,load_files=False):
     url=expand(data.get('url',''),variables).strip()
     if not url:raise ValueError('Enter a request URL to generate a command.')
     if '://' not in url:url='https://'+url
@@ -155,7 +155,8 @@ def prepare_http(data, variables):
     if parts.scheme not in ('http','https') or not parts.netloc:raise ValueError('Enter a valid HTTP or HTTPS URL.')
     pairs=[(expand(k,variables),expand(v,variables)) for k,v in active_rows(data,'params','param_rows')]
     original_pairs=[list(row[:2]) for row in active_rows(data,'params','param_rows')]
-    encoded=expand(data['imported_query'],variables) if 'imported_query' in data and original_pairs==data.get('imported_query_params') else urlencode(pairs)
+    encode=data.get('http_encode_url',True)
+    encoded=expand(data['imported_query'],variables) if 'imported_query' in data and original_pairs==data.get('imported_query_params') else urlencode(pairs) if encode else '&'.join(k+'='+v for k,v in pairs)
     query='&'.join(part for part in (parts.query,encoded) if part)
     url=urlunsplit((parts.scheme,parts.netloc,parts.path,query,''))
     headers={}
@@ -165,27 +166,58 @@ def prepare_http(data, variables):
         if existing is not None:del headers[existing]
         headers[key]=value
     for k,v in active_rows(data,'headers','header_rows'):header(expand(k,variables),expand(v,variables))
+    manual_names={name.lower() for name in headers}
     auth=data.get('auth_type','No Auth'); value=expand(data.get('auth_value',''),variables)
     if auth=='Bearer Token':header('Authorization','Bearer '+value)
     elif auth=='Basic Auth':header('Authorization','Basic '+base64.b64encode(value.encode()).decode())
     elif auth=='API Key':
-        key,_,secret=value.partition(':'); header(key.strip(),secret.strip())
+        key,_,secret=value.partition(':')
+        if data.get('api_key_location')=='Query Params':
+            query+='&' if query else '';query+=urlencode({key.strip():secret.strip()}) if encode else key.strip()+'='+secret.strip()
+        else:header(key.strip(),secret.strip())
+    elif auth=='JWT Bearer':
+        from http_features import jwt_token
+        token=jwt_token(data,variables)
+        if data.get('jwt_location','Request Header')=='Query Param':
+            key=expand(data.get('jwt_query_name','token'),variables)
+            query+='&' if query else '';query+=urlencode({key:token}) if encode else key+'='+token
+        else:header('Authorization',(expand(data.get('jwt_prefix','Bearer'),variables)+' '+token).strip())
+    path=quote(parts.path,safe="/%:@!$&'()*+,;=-._~") if encode else parts.path
+    if encode:query=quote(query,safe="%/?@!$&'()*+,;=:-._~")
+    url=urlunsplit((parts.scheme,parts.netloc,path,query,''))
     body=None
     if data.get('body_type')=='raw':
         text=expand(data.get('body',''),variables);original=text
         if USE_REQON_UI:
             media_type=next((value.split(';',1)[0].strip().lower() for key,value in headers.items() if key.lower()=='content-type'),'')
-            if media_type in ('application/json','text/json') or media_type.endswith('+json') or not media_type and json_comments.looks_like_json(text):
+            if media_type in ('application/json','text/json') or media_type.endswith('+json') or not media_type and (data.get('raw_language')=='JSON' or 'raw_language' not in data and json_comments.looks_like_json(text)):
                 try:text=json_comments.normalize(text)
                 except json.JSONDecodeError:
                     if data.get('_general') is None or data['_general'].request_validation:raise
         body=text.encode('utf-8')
         if text!=original and any(key.lower()=='content-length' for key in headers):header('Content-Length',str(len(body)))
-        header('Content-Type','application/json' if body.lstrip().startswith((b'{',b'[')) else 'text/plain; charset=utf-8',True)
+        from http_features import RAW_TYPES
+        header('Content-Type',RAW_TYPES.get(data.get('raw_language'),'application/json' if body.lstrip().startswith((b'{',b'[')) else 'text/plain; charset=utf-8'),True)
     elif data.get('body_type')=='x-www-form-urlencoded':
         body=urlencode([(expand(k,variables),expand(v,variables)) for k,v in active_rows(data,'form','form_rows')]).encode()
         header('Content-Type','application/x-www-form-urlencoded',True)
-    elif data.get('body_type')=='file':header('Content-Type','application/octet-stream',True)
+    elif data.get('body_type') in ('file','binary'):
+        header('Content-Type','application/octet-stream',True)
+        if load_files:
+            from http_features import read_body_file
+            body=read_body_file(data.get('body_file',''),data,variables).read_bytes()
+    elif data.get('body_type')=='form-data':
+        from http_features import multipart_body
+        body,media=multipart_body(data,variables,load_files)
+        # The boundary belongs to this serialization and must match the body.
+        header('Content-Type',media)
+    elif data.get('body_type')=='GraphQL':
+        query_text=expand(data.get('graphql_query',''),variables)
+        values=parse_message(expand(data.get('graphql_variables','') or '{}',variables))
+        if not isinstance(values,dict):raise ValueError('GraphQL variables must be a JSON object.')
+        body=json.dumps({'query':query_text,'variables':values},ensure_ascii=False).encode('utf-8');header('Content-Type','application/json',True)
+    disabled={name.lower() for name in data.get('disabled_headers',[])}
+    headers={name:value for name,value in headers.items() if name.lower() not in disabled or name.lower() in manual_names}
     return url,data.get('method','GET'),headers,body
 
 

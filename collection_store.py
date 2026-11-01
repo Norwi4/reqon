@@ -206,9 +206,18 @@ class CollectionStore:
                    'query': fields(data.get('param_rows', data.get('params', [])))},
                    'header': fields(data.get('header_rows', data.get('headers', [])))}
             mode = data.get('body_type')
-            if mode == 'raw': req['body'] = {'mode': 'raw', 'raw': data.get('body', '')}
+            if mode == 'raw': req['body'] = {'mode': 'raw', 'raw': data.get('body', ''),'options':{'raw':{'language':data.get('raw_language','JSON').lower()}}}
             if mode == 'x-www-form-urlencoded': req['body'] = {'mode': 'urlencoded', 'urlencoded': fields(data.get('form_rows', data.get('form', [])))}
+            if mode in ('file','binary'):req['body']={'mode':'file','file':{'src':data.get('body_file','')}}
+            if mode=='GraphQL':req['body']={'mode':'graphql','graphql':{'query':data.get('graphql_query',''),'variables':data.get('graphql_variables','')}}
+            if mode=='form-data':
+                req['body']={'mode':'formdata','formdata':[dict(key=r[0],description=r[2] if len(r)>2 else '',disabled=len(r)>3 and not r[3],
+                    **({'type':'file','src':r[1]} if len(r)>4 and r[4]=='File' else {'type':'text','value':r[1]})) for r in data.get('multipart_rows',[])]}
             if data.get('auth_type') == 'Bearer Token': req['auth'] = {'type': 'bearer', 'bearer': [{'key': 'token', 'value': data.get('auth_value', ''), 'type': 'string'}]}
+            if data.get('auth_type') in ('Basic Auth','API Key'):
+                kind='basic' if data['auth_type']=='Basic Auth' else 'apikey';key,_,value=data.get('auth_value','').partition(':')
+                values={'username':key,'password':value} if kind=='basic' else {'key':key,'value':value,'in':'query' if data.get('api_key_location')=='Query Params' else 'header'}
+                req['auth']={'type':kind,kind:[{'key':k,'value':v,'type':'string'} for k,v in values.items()]}
             return req
         def branch(fid=None):
             result = []
@@ -287,6 +296,20 @@ class CollectionStore:
             auth = req.get('auth') or {}
             if auth.get('type') == 'bearer':
                 data.update(auth_type='Bearer Token', auth_value=next((r.get('value', '') for r in auth.get('bearer', []) if r.get('key') == 'token'), ''))
+            if auth.get('type') in ('basic','apikey'):
+                kind=auth['type'];values={r['key']:r.get('value','') for r in auth.get(kind,[]) if 'key' in r}
+                if kind=='basic':data.update(auth_type='Basic Auth',auth_value=values.get('username','')+':'+values.get('password',''))
+                else:data.update(auth_type='API Key',auth_value=values.get('key','')+':'+values.get('value',''),api_key_location='Query Params' if values.get('in')=='query' else 'Header')
+            if body.get('mode')=='raw' and body.get('options',{}).get('raw',{}).get('language'):
+                from http_features import RAW_TYPES
+                language=body['options']['raw']['language'];data['raw_language']=next((name for name in RAW_TYPES if name.lower()==language),'Text')
+            if body.get('mode')=='file':data.update(body_type='binary',body_file=body.get('file',{}).get('src') or '')
+            if body.get('mode')=='graphql':data.update(body_type='GraphQL',graphql_query=body.get('graphql',{}).get('query',''),graphql_variables=body.get('graphql',{}).get('variables',''))
+            if body.get('mode')=='formdata':
+                data['body_type']='form-data';data['multipart_rows']=[]
+                for field in body.get('formdata',[]):
+                    file=field.get('type')=='file';value=field.get('src' if file else 'value','') or '';values=value if isinstance(value,list) else [value]
+                    data['multipart_rows'].extend([[field.get('key',''),v,field.get('description',''),not field.get('disabled',False),'File' if file else 'Text'] for v in values])
             return data
         with self.atomic():
             info = source if native else source['info']

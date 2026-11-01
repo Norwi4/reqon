@@ -70,7 +70,7 @@ class ParserTests(unittest.TestCase):
                "curl https://example.test --proxy http://proxy.test", "curl https://example.test; echo x",
                "curl https://example.test -d $(cat secret)", "curl https://example.test -d 'unfinished",
                'curl https://example.test --config private.conf', 'curl https://example.test --request',
-               "curl https://example.test -F 'file=@private'", "curl https://example.test -H 'x: 1' -H 'x: 2'"]
+               "curl https://example.test -F 'file=@-'", "curl https://example.test -H 'x: 1' -H 'x: 2'"]
         with patch('subprocess.run',side_effect=AssertionError('Command execution')),patch('builtins.open',side_effect=AssertionError('File access')):
             for command in cases:
                 with self.subTest(command=command),self.assertRaises(ValueError):parse_command(command)

@@ -77,7 +77,7 @@ def resolve_file(name,config):
 def effective_request(data,config,storage):
     result=dict(data,_general=config)
     if not data.get('general_overrides',False):
-        result.update(http_timeout=config.timeout_ms/1000,http_verify=config.verify_ssl,http_follow_redirects=config.follow_redirects,
+        result.update(http_timeout=config.timeout_ms/1000,http_verify=config.verify_ssl,http_follow_redirects=config.follow_redirects,http_disable_cookies=config.disable_cookies,
             http_version=config.http_version,tls_verify=config.verify_ssl,grpc_timeout_ms=config.timeout_ms,grpc_max_response_mb=config.max_response_mb)
     else:result.setdefault('http_version',config.http_version)
     if config.tls_keylog:

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 cd /src
-version="${REQON_VERSION:-0.13.9}"
+version="${REQON_VERSION:-0.14.0}"
 bash packaging/build-deb.sh "$version"
 python_bin=/opt/reqon-build-env/bin/python
 "$python_bin" -m pip install -r requirements-test.txt

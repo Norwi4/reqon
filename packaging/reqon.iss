@@ -1,5 +1,5 @@
 #define AppName "Reqon"
-#define AppVersion "0.13.9"
+#define AppVersion "0.14.0"
 #define AppExe "Reqon.exe"
 
 [Setup]

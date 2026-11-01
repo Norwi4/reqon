@@ -220,7 +220,10 @@ class MainWindow(GeneralController, Autosave, CollectionActions, QMainWindow):
         save.triggered.connect(lambda:self.save_request(self.workbench.currentWidget()) if self.workbench.currentWidget() else None)
         self.addAction(save)
 
-    def select_nav(self, name):
+    def select_nav(self, name, toggle=False):
+        if toggle and name==self._active_nav and not self._sidebar_collapsed:
+            self.set_sidebar_collapsed(True);return
+        self._active_nav=name;self.set_sidebar_collapsed(False)
         if USE_REQON_UI:
             if name=='Environments':self.environments.navigate();return
             self.collection_searchbar.setVisible(name=='Collections')
@@ -235,11 +238,23 @@ class MainWindow(GeneralController, Autosave, CollectionActions, QMainWindow):
         page=self.current_page()
         if isinstance(page,GrpcPage):page.tabs.setCurrentIndex(0)
 
+    def toggle_sidebar(self):self.set_sidebar_collapsed(not self._sidebar_collapsed)
+
+    def set_sidebar_collapsed(self,collapsed):
+        if self._sidebar_collapsed==collapsed:return
+        left=self.sidebar_container;sizes=self.workspace_splitter.sizes()
+        if collapsed:self._sidebar_width=sizes[0]
+        self._sidebar_collapsed=collapsed;self.sidebar_head.setVisible(not collapsed);self.sidebar_content.setVisible(not collapsed)
+        left.setMinimumWidth(76 if collapsed else 290);left.setMaximumWidth(76 if collapsed else 16777215)
+        width=76 if collapsed else self._sidebar_width;self.workspace_splitter.setSizes([width,max(200,sum(sizes)-width)])
+
     def show_console(self):
-        dialog=QDialog(self); dialog.setWindowTitle(DISPLAY_NAME+' Console'); dialog.resize(820,420)
-        layout=QVBoxLayout(dialog); output=QPlainTextEdit(); output.setReadOnly(True)
-        output.setPlainText('\n'.join(self.console_entries) or 'Requests sent in this session will appear here.')
-        layout.addWidget(output); dialog.exec()
+        visible=not self.console_panel.isVisible();self.console_panel.setVisible(visible);self.console_button.setChecked(visible)
+        if visible:self.console_panel.refresh();self.console_splitter.setSizes([max(200,self.console_splitter.height()-280),280])
+
+    def show_info(self):
+        from ui_workspace_panels import InfoDialog
+        self.info_dialog=InfoDialog(self);self.info_dialog.open()
 
     def configure_tab(self, page, draft_id=None):
         self.configure_general_page(page)
@@ -439,6 +454,8 @@ class MainWindow(GeneralController, Autosave, CollectionActions, QMainWindow):
             page.status.setText('Enter a server URL'); return
         page.status.setText('Sending…')
         page.set_busy(True)
+        self.console_entries.append(f"{time.strftime('%H:%M:%S')}  {data.get('method','gRPC')}  {data.get('url',data.get('server',''))}  Sending…")
+        self.console_entries[:]=self.console_entries[-1000:];self.console_panel.refresh()
         worker = Worker(data, self.variables(page.collection_id),self.proxy_preferences.config,self.general_preferences.config,self.store.path.parent,self.cookie_store); self.workers.append(worker)
         worker.page=page
         worker.done.connect(self.on_request_result,Qt.ConnectionType.QueuedConnection)
@@ -459,6 +476,8 @@ class MainWindow(GeneralController, Autosave, CollectionActions, QMainWindow):
     def request_finished(self, page, data, result, worker):
         page.show_response(result)
         self.console_entries.append(f"{time.strftime('%H:%M:%S')}  {data.get('method','gRPC')}  {data.get('url',data.get('server',''))}  {result.get('status','ERROR')}  {result['duration']} ms")
+        if result.get('error'):self.console_entries[-1]+='\n  '+result['error']
+        self.console_entries[:]=self.console_entries[-1000:];self.console_panel.refresh()
         self.store.insert('history', {'method':data.get('method', 'gRPC'), 'url':result.get('url',data.get('url',data.get('server',''))),
             'status':result.get('status',-1), 'duration':result['duration'], 'data':json.dumps(data)})
         self.refresh_history()
@@ -505,16 +524,34 @@ class MainWindow(GeneralController, Autosave, CollectionActions, QMainWindow):
         self.flush_page(page);self.save_workspace()
         return page
 
+    def apply_command_to_page(self,page,imported):
+        """Apply a parsed command without changing the request's persistent identity."""
+        index=self.workbench.indexOf(page)
+        if index<0 or page is not self.current_page():raise ValueError('Select the original request tab to apply this command.')
+        if page.busy:raise ValueError('Wait for the current request to finish before editing its command.')
+        data=page.collect();saved=page._saved;response=getattr(page,'last_response',None);editor_tab=page.tabs.currentIndex()
+        for key in ('param_rows','header_rows','form_rows','metadata_rows','raw_language'):data.pop(key,None)
+        data.update(imported.data);data['name']=page.name.text();data['general_overrides']=True
+        page._autosave_timer.stop();self._applying_command=True
+        try:
+            factory=self.new_grpc_request if data.get('kind')=='grpc' else self.new_request
+            replacement=factory(data,page.request_id,page.collection_id,page.folder_id,page._draft_id)
+            replacement._saved=saved;replacement._preview_pinned=True
+            replacement.tabs.setCurrentIndex(min(editor_tab,replacement.tabs.count()-1))
+            if response:replacement.show_response(response)
+            self.workbench.removeTab(index);self.workbench.tabBar().moveTab(self.workbench.indexOf(replacement),index);self.workbench.setCurrentWidget(replacement);page.deleteLater()
+        finally:self._applying_command=False
+        self.queue_autosave(replacement);return replacement
+
     def show_code_snippet(self):
-        sidebar=self.workspace_splitter.widget(0)
-        if self.width()<1240 and sidebar.isVisible():
-            self._snippet_restore_sidebar=True; sidebar.hide()
+        if self.width()<1240 and not self._sidebar_collapsed:
+            self._snippet_restore_sidebar=True;self.set_sidebar_collapsed(True)
         self.snippet_panel.show(); self.code_button.setChecked(True); self.snippet_panel.refresh()
 
     def hide_code_snippet(self):
         self.snippet_panel.hide(); self.code_button.setChecked(False)
         if getattr(self,'_snippet_restore_sidebar',False):
-            self.workspace_splitter.widget(0).show(); self._snippet_restore_sidebar=False
+            self.set_sidebar_collapsed(False); self._snippet_restore_sidebar=False
 
     def toggle_code_snippet(self):
         if self.snippet_panel.isVisible():self.hide_code_snippet()

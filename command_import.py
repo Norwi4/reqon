@@ -164,6 +164,7 @@ def import_curl(tokens):
               '--oauth2-bearer':'bearer', '-b':'cookie', '--cookie':'cookie', '-A':'agent', '--user-agent':'agent',
               '-e':'referer', '--referer':'referer', '-m':'timeout', '--max-time':'timeout',
               '--cacert':'ca', '--cert':'cert', '-E':'cert', '--key':'key', '--url-query':'query',
+              '-F':'multipart','--form':'multipart','--form-string':'form_string','--max-redirs':'max_redirects',
               '-o':'output', '--output':'output', '-w':'output', '--write-out':'output'}
     flags = {'-G':'get', '--get':'get', '-I':'head', '--head':'head', '-L':'redirect', '--location':'redirect',
              '--no-location':'no_redirect', '-k':'insecure', '--insecure':'insecure', '--no-insecure':'secure',
@@ -171,6 +172,7 @@ def import_curl(tokens):
              '--http1.1':'http1', '--http2':'http_auto', '--http2-prior-knowledge':'http2',
              '-s':'ignore', '--silent':'ignore', '-S':'ignore', '--show-error':'ignore', '-v':'ignore', '--verbose':'ignore',
              '-i':'ignore', '--include':'ignore', '--show-headers':'ignore', '-f':'ignore', '--fail':'ignore',
+             '--location-trusted':'trusted','--post301':'original_method','--post302':'original_method','--post303':'original_method',
              '--fail-with-body':'ignore', '--no-progress-meter':'ignore', '-N':'ignore', '--no-buffer':'ignore'}
     opts, urls = options(tokens, values, flags, short=True)
     data = dict(kind='http', name='Imported request', method='GET', url='', params=[], headers=[],
@@ -178,16 +180,32 @@ def import_curl(tokens):
                 http_verify=True, http_follow_redirects=False, http_timeout=0.0,
                 http_ca_file='', http_cert_file='', http_key_file='')
     notes, chunks, query, cookies = [], [], [], []
+    multipart=[];binary_file=None
     explicit, get, head, json_body, compressed, has_body = None, False, False, False, False, False
     for key, value in opts:
         if key == 'url': urls.append(value)
         elif key == 'method': explicit = value
         elif key == 'header': data['headers'].append(header(value))
         elif key in ('data','raw','binary','encoded','json'):
+            if key=='binary' and value.startswith('@'):
+                if value=='@-' or binary_file is not None or chunks:raise ValueError('Import one binary file, without stdin or inline data.')
+                binary_file=value[1:];has_body=True;continue
+            if binary_file is not None:raise ValueError('A binary file cannot be combined with inline data.')
             if key != 'raw': inline(value, '--'+key)
             if key == 'encoded': value = encoded_data(value)
             if chunks and key != 'json': chunks.append('&')
             chunks.append(value); has_body = True; json_body |= key == 'json'
+        elif key in ('multipart','form_string'):
+            name,sep,content=value.partition('=')
+            if not sep or not name:raise ValueError('Form fields must use name=value.')
+            kind='Text'
+            if key=='multipart' and content.startswith('@'):
+                content=content[1:];kind='File'
+                if content.startswith('"') and content.endswith('"'):content=content[1:-1].replace('\\"','"').replace('\\\\','\\')
+                elif any(char in content for char in ',;'):raise ValueError('Use one file per form field without curl file modifiers.')
+                if not content or content=='-':raise ValueError('Select a local file instead of stdin.')
+            elif key=='multipart' and (content.startswith('<') or ';type=' in content):raise ValueError('Paste a plain form value or use --form-string.')
+            multipart.append([name,content,'',True,kind]);has_body=True
         elif key == 'query': query.append(value[1:] if value.startswith('+') else encoded_data(value))
         elif key == 'get': get = True
         elif key == 'head': head = True
@@ -202,6 +220,9 @@ def import_curl(tokens):
         elif key in ('insecure','secure'): data['http_verify'] = key == 'secure'
         elif key in ('redirect','no_redirect'): data['http_follow_redirects'] = key == 'redirect'
         elif key == 'timeout': data['http_timeout'] = number(value, '--max-time')
+        elif key == 'max_redirects':data['http_max_redirects']=int(number(value,'--max-redirs',100))
+        elif key == 'trusted':data.update(http_follow_redirects=True,http_follow_auth=True)
+        elif key == 'original_method':data['http_follow_original_method']=True
         elif key in ('ca','cert','key'): data['http_'+key+'_file'] = value
         elif key == 'compressed': compressed = True
         elif key in ('http1','http_auto','http2'):data['http_version']={'http1':'HTTP/1.x','http_auto':'Auto','http2':'HTTP/2'}[key]
@@ -229,6 +250,8 @@ def import_curl(tokens):
     def default_header(name, value):
         if not any(row[0].lower()==name.lower() for row in data['headers']): data['headers'].append([name,value,''])
     payload = ''.join(chunks)
+    if multipart and (chunks or binary_file is not None):raise ValueError('Multipart fields cannot be combined with another body type.')
+    if get and (multipart or binary_file is not None):raise ValueError('--get cannot be combined with file or multipart bodies.')
     if get and has_body: query.append(payload); has_body = False
     if head and has_body: raise ValueError('A HEAD request cannot be imported with a request body.')
     method = explicit or ('HEAD' if head else 'GET' if get else 'POST' if has_body else 'GET')
@@ -241,7 +264,9 @@ def import_curl(tokens):
     data['imported_query'] = raw_query
     data['imported_query_params'] = [[k,v] for k,v,*_ in data['params'] if k]
     data['url'] = urlunsplit((parts.scheme, parts.netloc, parts.path, '', ''))
-    if has_body:
+    if multipart:data.update(body_type='form-data',multipart_rows=multipart)
+    elif binary_file is not None:data.update(body_type='binary',body_file=binary_file)
+    elif has_body:
         if json_body: default_header('Content-Type','application/json'); default_header('Accept','application/json')
         else: default_header('Content-Type','application/x-www-form-urlencoded')
         content_type = next((row[1].split(';')[0].strip().lower() for row in data['headers'] if row[0].lower()=='content-type'), '')

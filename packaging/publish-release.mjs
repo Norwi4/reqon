@@ -11,6 +11,7 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const version = process.argv[2];
 if (!/^\d+\.\d+\.\d+$/.test(version ?? '')) throw new Error('Expected version x.y.z');
 const publish = process.argv.includes('--publish');
+const windowsOnly = process.argv.includes('--windows-only');
 const repository = 'Norwi4/reqon';
 function git(args, input) {
   return execFileSync('git', args, { cwd: root, input, encoding: 'utf8',
@@ -23,8 +24,7 @@ const body = await readFile(path.join(root, `docs/release-${version}.md`), 'utf8
 const filenames = [
   `Reqon-Setup-${version}-win64.exe`,
   `Reqon-${version}-windows-x86_64.zip`,
-  `Reqon-${version}-linux-x86_64.tar.gz`,
-  `reqon_${version}_astra1.8_amd64.deb`,
+  ...(!windowsOnly ? [`Reqon-${version}-linux-x86_64.tar.gz`, `reqon_${version}_astra1.8_amd64.deb`] : []),
 ];
 const assets = [];
 for (const name of filenames) {
