@@ -102,6 +102,7 @@ Windows: `powershell -File packaging/build-windows.ps1`. Скрипт созда
 Проверки приложения используют временные базы и локальные HTTP/gRPC-серверы:
 
 ```sh
+python -m pip install -r requirements-test.txt
 python -X faulthandler -m unittest discover -s tests -p "test_*.py" -v
 ```
 

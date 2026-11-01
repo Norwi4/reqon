@@ -4,6 +4,7 @@ cd /src
 version="${REQON_VERSION:-0.13.9}"
 bash packaging/build-deb.sh "$version"
 python_bin=/opt/reqon-build-env/bin/python
+"$python_bin" -m pip install -r requirements-test.txt
 xvfb-run -a -s '-screen 0 1600x1000x24' sh -c 'openbox >/tmp/reqon-openbox.log 2>&1 & exec "$@"' sh \
     "$python_bin" -X faulthandler -m unittest discover -s tests -p "${REQON_TEST_PATTERN:-test_*.py}" -v
 apt-get install -y "./dist/reqon_${version}_astra1.8_amd64.deb"
