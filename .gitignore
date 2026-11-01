@@ -6,6 +6,9 @@ build/
 dist/
 *.spec
 
+# Website sources are maintained locally and deployed separately.
+/website/
+
 # Local application data, logs and development caches
 *.sqlite
 *.sqlite3

@@ -8,7 +8,7 @@
 
 [Сайт](https://reqon.ru/) · [Скачать](https://github.com/Norwi4/reqon/releases) · [Документация](https://reqon.ru/docs/) · [Сообщить об ошибке](https://github.com/Norwi4/reqon/issues)
 
-![Reqon — HTTP-запрос и просмотр JSON-ответа](website/public/assets/screenshots/http-current.png)
+![Reqon — HTTP-запрос и просмотр JSON-ответа](docs/readme/reqon-http.png)
 
 ## Возможности
 
@@ -106,16 +106,3 @@ python -X faulthandler -m unittest discover -s tests -p "test_*.py" -v
 ```
 
 Изменения Windows 0.13.8 описаны в [заметках к выпуску](docs/windows-0.13.8.md).
-
-## Сайт
-
-Исходники сайта находятся в [website/](website/). Для запуска нужен Node.js 22 или новее:
-
-```sh
-node website/src/build.mjs
-node website/server.mjs
-```
-
-Сайт откроется по адресу <http://127.0.0.1:4173/>. Установка npm-зависимостей не требуется. Он показывает последние стабильные сборки для каждой платформы и архив версий; скачивание начинается по прямой ссылке на файл GitHub Releases.
-
-[Запуск, проверки и развёртывание сайта на VDS](website/README.md).
