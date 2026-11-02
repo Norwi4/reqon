@@ -170,7 +170,7 @@ class ProxySettingsUI(unittest.TestCase):
         windows={id(w) for w in QApplication.topLevelWidgets() if w.isVisible()}
         self.window.settings_button.click();self.app.processEvents();overlay=self.window.settings_overlay
         self.assertFalse(overlay.isWindow());self.assertEqual({id(w) for w in QApplication.topLevelWidgets() if w.isVisible()},windows)
-        self.assertEqual([key for key,button in overlay.navigation.items() if button.isEnabled()],['General','Proxy'])
+        self.assertEqual([key for key,button in overlay.navigation.items() if button.isEnabled()],['General','Themes','Proxy'])
         overlay.navigation['Proxy'].click()
         self.assertFalse(self.window.workbench.isEnabled())
         overlay.custom.setChecked(True);overlay.host.setText('127.0.0.1');overlay.port.setText('3128');overlay.auth.setChecked(True)
