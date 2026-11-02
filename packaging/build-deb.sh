@@ -2,7 +2,7 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 root="$(pwd -P)"
-version="${1:-0.14.0}"
+version="${1:-0.15.0}"
 [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo 'Expected a numeric x.y.z version' >&2; exit 1; }
 [[ "$(uname -s)" == Linux && "$(dpkg --print-architecture)" == amd64 ]] || { echo 'Build on Linux amd64' >&2; exit 1; }
 python_bin="${PYTHON:-python3}"
@@ -16,6 +16,7 @@ python_bin="$root/build/linux/venv/bin/python"
     --add-data "$root/Reqon_Icon_Pack_Approved/linux/reqon.png:Reqon_Icon_Pack_Approved/linux" \
     --add-data "$root/Reqon_Icon_Pack_Approved/png/transparent:Reqon_Icon_Pack_Approved/png/transparent" \
     --add-data "$root/reqon-ui-states v2/dark:reqon-ui-states v2/dark" \
+    --add-data "$root/reqon-ui-states v2/light:reqon-ui-states v2/light" \
     --add-data "$root/reqon-ui-states v2/manifest.json:reqon-ui-states v2" \
     --name Reqon --distpath dist/linux --workpath build/linux/pyinstaller --specpath build/linux main.py
 stage="$root/build/linux/deb-stage"

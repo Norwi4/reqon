@@ -1,4 +1,5 @@
 """The General settings page, shared with the native Settings overlay."""
+from ui_theming import theme_qcolor
 from dataclasses import asdict,replace
 from pathlib import Path
 from PySide6.QtCore import QTimer,Qt
@@ -11,9 +12,11 @@ from ui_settings import ProxySwitch
 class SettingsRadio(QRadioButton):
     def paintEvent(self,event):
         painter=QPainter(self);painter.setRenderHint(QPainter.RenderHint.Antialiasing);y=(self.height()-14)//2
-        painter.setPen(QPen(QColor('#008cff' if self.isChecked() else '#777777'),1));painter.setBrush(QColor('#008cff' if self.isChecked() else '#212121'));painter.drawEllipse(1,y,13,13)
-        if self.isChecked():painter.setPen(Qt.PenStyle.NoPen);painter.setBrush(QColor('white'));painter.drawEllipse(5,y+4,5,5)
-        painter.setPen(QColor('#e6e6e6'));painter.setFont(self.font());painter.drawText(self.rect().adjusted(22,0,0,0),Qt.AlignmentFlag.AlignVCenter,self.text())
+        painter.setPen(QPen(theme_qcolor('#008cff' if self.isChecked() else '#777777'),1));painter.setBrush(theme_qcolor('#008cff' if self.isChecked() else '#212121'));painter.drawEllipse(1,y,13,13)
+        if self.isChecked():
+            from ui_palettes import current_theme
+            painter.setPen(Qt.PenStyle.NoPen);painter.setBrush(QColor(current_theme().colors['action_text']));painter.drawEllipse(5,y+4,5,5)
+        painter.setPen(theme_qcolor('#e6e6e6'));painter.setFont(self.font());painter.drawText(self.rect().adjusted(22,0,0,0),Qt.AlignmentFlag.AlignVCenter,self.text())
 
 
 class GeneralPage(QWidget):

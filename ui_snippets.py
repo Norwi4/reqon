@@ -1,4 +1,5 @@
 """Live native code-snippet sidebar."""
+from ui_theming import set_style,theme_qcolor
 from ui_brand import stylesheet
 from PySide6.QtCore import Qt, QTimer, Signal
 from PySide6.QtGui import QColor, QSyntaxHighlighter, QTextCharFormat, QTextOption
@@ -10,7 +11,7 @@ from code_snippets import generate_snippet
 class ShellSyntax(QSyntaxHighlighter):
     def highlightBlock(self,text):
         quoted=self.previousBlockState()==1; start=0
-        fmt=QTextCharFormat(); fmt.setForeground(QColor('#e6dc8e'))
+        fmt=QTextCharFormat(); fmt.setForeground(theme_qcolor('#e6dc8e'))
         for i,char in enumerate(text):
             if char=="'":
                 if quoted:self.setFormat(start,i-start+1,fmt)
@@ -37,7 +38,7 @@ class CodeSnippetPanel(QFrame):
         if hasattr(self.editor,'presentation'):self.editor.presentation.mode='text'
         self.editor.setWordWrapMode(QTextOption.WrapMode.WrapAnywhere)
         self.editor.highlighter.setDocument(None); self.editor.highlighter=ShellSyntax(self.editor.document())
-        self.editor.setStyleSheet(stylesheet('QPlainTextEdit#codeEditor { font-size:12px; background:#262626; }'))
+        set_style(self.editor,stylesheet('QPlainTextEdit#codeEditor { font-size:12px; background:#262626; }'))
         self.editor.gutter_color='#262626'
         layout.addWidget(self.editor); layout.addStretch(1)
         self.message=QLabel(); self.message.setWordWrap(True); self.message.setObjectName('muted'); layout.addWidget(self.message)

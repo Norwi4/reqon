@@ -226,6 +226,7 @@ def main():
     assets = list((ROOT / 'Reqon_Icon_Pack_Approved/png/transparent').glob('*.png'))
     assets += [ROOT / 'Reqon_Icon_Pack_Approved/linux/reqon.png', ROOT / 'reqon-ui-states v2/manifest.json']
     assets += list((ROOT / 'reqon-ui-states v2/dark').glob('*.png'))
+    assets += list((ROOT / 'reqon-ui-states v2/light').glob('*.png'))
     for path in assets:
         replacements['./opt/reqon/_internal/' + path.relative_to(ROOT).as_posix()] = (path.read_bytes(), 0o644)
     for size in (16, 24, 32, 48, 64, 128, 256, 512):

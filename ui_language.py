@@ -4,6 +4,10 @@ from PySide6.QtGui import QAction
 from PySide6.QtWidgets import QApplication,QWidget,QLabel,QAbstractButton,QLineEdit,QPlainTextEdit,QTabWidget
 
 RU={
+ 'Theme selection':'Выбор темы','Sync with system':'Как в системе','Manual':'Вручную','Day Theme':'Дневная тема','Night Theme':'Ночная тема','ACTIVE':'АКТИВНА',
+ 'Used when your system is in light mode.':'Используется при светлом оформлении системы.',
+ 'Used when your system is in dark mode.':'Используется при тёмном оформлении системы.',
+ 'Choose a theme for your workspace. Sync with your system or select your preferred appearance.':'Выберите оформление рабочего пространства. Следуйте настройкам системы или выберите тему вручную.',
  'General':'Основные','Themes':'Темы','Shortcuts':'Горячие клавиши','Data':'Данные','Add-ons':'Дополнения','Certificates':'Сертификаты','Proxy':'Прокси','Update':'Обновление','About':'О программе',
  'Settings':'Настройки','Close settings':'Закрыть настройки','Not available yet':'Пока недоступно','Request':'Запрос','HTTP version':'Версия HTTP',
  'Select the HTTP version to use for sending the request.':'Выберите версию HTTP для отправки запросов.',

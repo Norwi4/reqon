@@ -51,7 +51,8 @@ class CollectionActions:
             item.setFlags(item.flags() | Qt.ItemFlag.ItemIsEditable | Qt.ItemFlag.ItemIsDragEnabled)
             if kind in ('request', 'example'): item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsDropEnabled)
             item.setToolTip(0, name)
-            font = QFont('Inter' if USE_REQON_UI else 'Segoe UI'); font.setPixelSize(12)
+            from ui_typography import ui_font
+            font = ui_font(12) if USE_REQON_UI else QFont('Segoe UI'); font.setPixelSize(12)
             font.setWeight(QFont.Weight.Normal if USE_REQON_UI else QFont.Weight.DemiBold);item.setFont(0,font)
             if kind == 'collection':
                 item.setData(0, STAR, row['starred'])

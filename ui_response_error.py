@@ -1,4 +1,5 @@
 """Native response status and illustrated error states. No HTML/browser surface."""
+from ui_theming import set_style,theme_qcolor
 import math
 from PySide6.QtCore import Qt,QSize,QRectF,QByteArray
 from PySide6.QtGui import QColor,QPainter,QTextOption,QFontMetricsF
@@ -15,7 +16,7 @@ class StatusBadge(QLabel):
     def __init__(self):
         super().__init__('');self.tone='neutral';self.setFixedHeight(20);self.setMaximumWidth(260)
         if USE_REQON_UI:self.PALETTE={'error':(C['error_bg'],C['error']),'success':(C['success_bg'],C['success']),'warning':(C['warning_bg'],C['warning']),'neutral':(C['selected'],C['muted'])}
-        self.setStyleSheet(stylesheet('font-size:12px;'))
+        set_style(self,stylesheet('font-size:12px;'))
         self.setSizePolicy(QSizePolicy.Policy.Preferred,QSizePolicy.Policy.Fixed)
         self.setTextFormat(Qt.TextFormat.PlainText)
     def setText(self,value):
@@ -31,8 +32,8 @@ class StatusBadge(QLabel):
         if not self.text():return
         background,foreground=self.PALETTE[self.tone]
         painter=QPainter(self);painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-        painter.setPen(Qt.PenStyle.NoPen);painter.setBrush(QColor(background));painter.drawRoundedRect(QRectF(self.rect()),3,3)
-        painter.setPen(QColor(foreground))
+        painter.setPen(Qt.PenStyle.NoPen);painter.setBrush(theme_qcolor(background));painter.drawRoundedRect(QRectF(self.rect()),3,3)
+        painter.setPen(theme_qcolor(foreground))
         text=self.fontMetrics().elidedText(self.text(),Qt.TextElideMode.ElideRight,max(0,self.width()-14))
         painter.drawText(self.rect().adjusted(7,0,-7,0),Qt.AlignmentFlag.AlignVCenter|Qt.AlignmentFlag.AlignLeft,text)
 
@@ -79,11 +80,11 @@ class ErrorDetails(QTextEdit):
     def set_tone(self,tone):
         background='#303030' if tone=='neutral' else '#5c1c06'
         if USE_REQON_UI:background=C['selected'] if tone=='neutral' else C['error_bg']
-        self.setStyleSheet(stylesheet(f'QTextEdit {{background:{background};color:#f0dfd8;border:0;border-radius:3px;padding:10px 14px;font-size:12px;}}'))
+        set_style(self,stylesheet(f'QTextEdit {{background:{background};color:#f0dfd8;border:0;border-radius:3px;padding:10px 14px;font-size:12px;}}'))
         if USE_REQON_UI:
             from ui_editor_behavior import settings
             from ui_typography import apply_editor_font
-            self._reqon_font_base_style=self.styleSheet();apply_editor_font(self,settings())
+            self._reqon_font_base_style=self._theme_style_source;apply_editor_font(self,settings())
     def set_details(self,text):
         self.setPlainText(text);self.selectAll();self.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.moveCursor(self.textCursor().MoveOperation.Start);self.fit_height()
@@ -97,7 +98,7 @@ class ErrorPanel(QScrollArea):
     def __init__(self):
         super().__init__();self.setFrameShape(QFrame.Shape.NoFrame);self.setWidgetResizable(True)
         self.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        content=QWidget();content.setObjectName('responseErrorContent');content.setStyleSheet(stylesheet('QWidget#responseErrorContent {background:#212121;}'))
+        content=QWidget();content.setObjectName('responseErrorContent');set_style(content,stylesheet('QWidget#responseErrorContent {background:#212121;}'))
         self.setWidget(content);outer=QVBoxLayout(content);outer.setContentsMargins(20,20,20,24);outer.setSpacing(0)
         outer.addStretch(1)
         self.card=QWidget();self.card.setMaximumWidth(620);self.card.setSizePolicy(QSizePolicy.Policy.Expanding,QSizePolicy.Policy.Preferred)
@@ -105,10 +106,10 @@ class ErrorPanel(QScrollArea):
         self.illustration=StateIllustration('error-service-unavailable') if USE_REQON_UI else ErrorIllustration()
         self.asset_name=None;layout.addWidget(self.illustration,0,Qt.AlignmentFlag.AlignHCenter)
         self.title=QLabel();self.title.setTextFormat(Qt.TextFormat.PlainText);self.title.setWordWrap(True)
-        self.title.setAlignment(Qt.AlignmentFlag.AlignCenter);self.title.setStyleSheet(stylesheet('font-size:14px;font-weight:600;color:#f2f2f2;'))
+        self.title.setAlignment(Qt.AlignmentFlag.AlignCenter);set_style(self.title,stylesheet('font-size:14px;font-weight:600;color:#f2f2f2;'))
         self.title.setSizePolicy(QSizePolicy.Policy.Ignored,QSizePolicy.Policy.Preferred);layout.addWidget(self.title)
         self.hint=QLabel();self.hint.setTextFormat(Qt.TextFormat.PlainText);self.hint.setWordWrap(True)
-        self.hint.setAlignment(Qt.AlignmentFlag.AlignCenter);self.hint.setStyleSheet(stylesheet('font-size:12px;color:#a6a6a6;'))
+        self.hint.setAlignment(Qt.AlignmentFlag.AlignCenter);set_style(self.hint,stylesheet('font-size:12px;color:#a6a6a6;'))
         self.hint.setSizePolicy(QSizePolicy.Policy.Ignored,QSizePolicy.Policy.Preferred);layout.addWidget(self.hint)
         self.details=ErrorDetails();layout.addWidget(self.details,0,Qt.AlignmentFlag.AlignHCenter)
         outer.addWidget(self.card,0,Qt.AlignmentFlag.AlignHCenter);outer.addStretch(1)

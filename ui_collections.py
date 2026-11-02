@@ -1,4 +1,5 @@
 """Native collection tree, hover actions and local collection/example editors."""
+from ui_theming import theme_qcolor
 import json
 from PySide6.QtCore import Qt, QSize, QRect, Signal, QPoint
 from PySide6.QtGui import QColor, QPainter, QPen, QKeySequence
@@ -22,10 +23,10 @@ class CollectionMenu(QMenu):
         action = getattr(self, 'delete_action', None)
         if not action: return
         rect = self.actionGeometry(action); painter = QPainter(self)
-        painter.fillRect(rect, QColor('#363636' if self.activeAction() is action else '#242424'))
-        painter.setFont(self.font()); painter.setPen(QColor('#ef9a9a'))
+        painter.fillRect(rect, theme_qcolor('#363636' if self.activeAction() is action else '#242424'))
+        painter.setFont(self.font()); painter.setPen(theme_qcolor('#ef9a9a'))
         painter.drawText(rect.adjusted(8, 0, -8, 0), Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter, 'Delete')
-        painter.setPen(QColor('#858585'))
+        painter.setPen(theme_qcolor('#858585'))
         painter.drawText(rect.adjusted(8, 0, -24, 0), Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter, 'Del')
 
 
@@ -42,11 +43,11 @@ class TreeDelegate(QStyledItemDelegate):
         reserve = (52 if value[0] == 'collection' else 28) if hovered else (26 if index.data(STAR) else 4)
         full_rect = QRect(option.rect)
         # Paint the row background across its width, then the elided label with room for actions.
-        if option.state & QStyle.StateFlag.State_Selected: painter.fillRect(full_rect, QColor('#343434'))
-        elif hovered: painter.fillRect(full_rect, QColor('#303030'))
+        if option.state & QStyle.StateFlag.State_Selected: painter.fillRect(full_rect, theme_qcolor('#343434'))
+        elif hovered: painter.fillRect(full_rect, theme_qcolor('#303030'))
         inset = 11 if value[0] == 'collection' else 26 if value[0] == 'folder' else 18
         label_rect = full_rect.adjusted(inset, 0, -reserve, 0)
-        painter.setFont(option.font); painter.setPen(QColor('#e6e6e6'))
+        painter.setFont(option.font); painter.setPen(theme_qcolor('#e6e6e6'))
         if not option.icon.isNull():
             option.icon.paint(painter, QRect(label_rect.left(), full_rect.y()+6, 16, 16))
             label_rect.adjust(22, 0, 0, 0)
@@ -55,7 +56,7 @@ class TreeDelegate(QStyledItemDelegate):
         if index.data(STAR) and not hovered:
             icon('star', '#ffca80', 14).paint(painter, QRect(full_rect.right()-22, full_rect.y()+7, 14, 14))
         if item is tree.currentItem() and tree.hasFocus():
-            painter.setPen(QPen(QColor('#6e9ecf'), 1)); painter.drawRect(full_rect.adjusted(0, 0, -1, -1))
+            painter.setPen(QPen(theme_qcolor('#6e9ecf'), 1)); painter.drawRect(full_rect.adjusted(0, 0, -1, -1))
 
     def sizeHint(self, option, index): return QSize(80, 30 if USE_REQON_UI else 28)
 
@@ -123,7 +124,7 @@ class CollectionTree(QTreeWidget):
             painter=QPainter(self.viewport())
             for item in self.selectedItems():
                 rect=self.visualItemRect(item)
-                if rect.isValid():painter.fillRect(QRect(0,rect.top(),2,rect.height()),QColor(COLORS['accent']))
+                if rect.isValid():painter.fillRect(QRect(0,rect.top(),2,rect.height()),theme_qcolor(COLORS['accent']))
 
     def leaveEvent(self, event):
         if not self.more.underMouse() and not self.star.underMouse(): self.clear_hover()
@@ -165,14 +166,14 @@ class CollectionTree(QTreeWidget):
     def drawBranches(self, painter, rect, index):
         item = self.itemFromIndex(index)
         painter.save()
-        if item.isSelected(): painter.fillRect(rect, QColor('#343434'))
-        elif item is self.hover_item: painter.fillRect(rect, QColor('#303030'))
-        painter.setPen(QPen(QColor('#383838'), 1))
+        if item.isSelected(): painter.fillRect(rect, theme_qcolor('#343434'))
+        elif item is self.hover_item: painter.fillRect(rect, theme_qcolor('#303030'))
+        painter.setPen(QPen(theme_qcolor('#383838'), 1))
         ancestor = item.parent(); x = rect.right()-self.indentation()-2
         while ancestor:
             painter.drawLine(x, rect.top(), x, rect.bottom()); x -= self.indentation(); ancestor = ancestor.parent()
         if item.childCount():
-            x = rect.right()-3; y = rect.center().y(); painter.setPen(QPen(QColor('#c0c0c0'), 1.2))
+            x = rect.right()-3; y = rect.center().y(); painter.setPen(QPen(theme_qcolor('#c0c0c0'), 1.2))
             if item.isExpanded():
                 painter.drawLine(x-3, y-1, x, y+2); painter.drawLine(x, y+2, x+3, y-1)
             else:

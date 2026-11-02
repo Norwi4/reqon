@@ -1,4 +1,5 @@
 """GUI-thread autosave, persistent local drafts and restoration of open tabs."""
+from ui_theming import set_style
 import json
 import uuid
 from PySide6.QtCore import QTimer
@@ -52,7 +53,7 @@ class Autosave:
             self.workbench.tabBar().schedule()
         label=getattr(page,'save_state',None)
         if label:
-            label.setText(text); label.setStyleSheet(stylesheet('color:#ef9a9a;font-size:11px;' if error else 'color:#969696;font-size:11px;'))
+            label.setText(text); set_style(label,stylesheet('color:#ef9a9a;font-size:11px;' if error else 'color:#969696;font-size:11px;'))
 
     def queue_autosave(self,page):
         if self.workbench.indexOf(page)<0:return

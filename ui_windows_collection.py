@@ -1,4 +1,5 @@
 """Windows collection overview: description and a compact facts sidebar."""
+from ui_theming import set_style
 import json
 from PySide6.QtCore import Qt,QSize,QSignalBlocker
 from PySide6.QtWidgets import QWidget,QVBoxLayout,QHBoxLayout,QLabel,QLineEdit,QPlainTextEdit,QTabWidget,QPushButton,QMenu,QSizePolicy,QFrame
@@ -18,7 +19,7 @@ def build_collection_page(page,window,cid):
     layout=QVBoxLayout(page);layout.setContentsMargins(16,8,16,16);layout.setSpacing(4)
     head=QHBoxLayout();head.setContentsMargins(0,0,0,8);head.setSpacing(8)
     page.title=CollectionNameEdit()
-    page.title.setStyleSheet(f'QLineEdit {{font-size:12px;font-weight:600;background:transparent;border:1px solid transparent;padding:0 6px;}} QLineEdit:focus {{border-color:{C["focus"]};}}')
+    set_style(page.title,f'QLineEdit {{font-size:12px;font-weight:600;background:transparent;border:1px solid transparent;padding:0 6px;}} QLineEdit:focus {{border-color:{C["focus"]};}}')
     def rename(text):
         name=text.strip()
         if not name:return
@@ -41,17 +42,17 @@ def build_collection_page(page,window,cid):
             ('Add gRPC request',lambda:window.add_tree_request(cid,None,'grpc')),('Add folder',lambda:window.add_folder(cid))]:menu.addAction(title,callback)
     more.setMenu(menu);more.setPopupMode(more.ToolButtonPopupMode.InstantPopup);head.addWidget(more);layout.addLayout(head)
     tabs=QTabWidget();tabs.setDocumentMode(True);tabs.setObjectName('editorTabs');tabs.tabBar().setDrawBase(False)
-    tabs.setStyleSheet('QTabWidget::pane {border:0;}');layout.addWidget(tabs,1)
+    set_style(tabs,'QTabWidget::pane {border:0;}');layout.addWidget(tabs,1)
     overview=QWidget();body=QHBoxLayout(overview);body.setContentsMargins(16,24,8,8);body.setSpacing(24)
     record=window.store.entity('collection',cid)
     from ui_documentation import DocumentationEditor
     page.description=DocumentationEditor(record['description']);page.description.setPlaceholderText('Add collection description')
-    page.description.setStyleSheet(f'QPlainTextEdit {{border:0;background:{C["canvas"]};padding:0;color:{C["text"]};}}')
+    set_style(page.description,f'QPlainTextEdit {{border:0;background:{C["canvas"]};padding:0;color:{C["text"]};}}')
     page.description.setFrameShape(QFrame.Shape.NoFrame);page.description.textChanged.connect(page.save_description);body.addWidget(page.description,1)
     info=QWidget();info.setFixedWidth(190);facts=QVBoxLayout(info);facts.setContentsMargins(0,4,0,0);facts.setSpacing(12)
-    page.count=QLabel();page.count.setStyleSheet('font-size:12px;');facts.addWidget(page.count)
+    page.count=QLabel();set_style(page.count,'font-size:12px;');facts.addWidget(page.count)
     page.protocol_counts=QLabel();page.protocol_counts.setWordWrap(True);page.protocol_counts.setObjectName('muted');facts.addWidget(page.protocol_counts)
-    line=QFrame();line.setFrameShape(QFrame.Shape.HLine);line.setStyleSheet(f'color:{C["border"]};');facts.addWidget(line)
+    line=QFrame();line.setFrameShape(QFrame.Shape.HLine);set_style(line,f'color:{C["border"]};');facts.addWidget(line)
     label=QLabel('Summary');label.setObjectName('muted');facts.addWidget(label)
     page.summary=QLabel();page.summary.setTextFormat(Qt.TextFormat.PlainText);page.summary.setWordWrap(True);page.summary.setObjectName('muted');facts.addWidget(page.summary)
     def update_summary():

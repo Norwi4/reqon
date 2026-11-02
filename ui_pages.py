@@ -1,3 +1,4 @@
+from ui_theming import set_style
 import json
 import re
 from pathlib import Path
@@ -67,7 +68,7 @@ class ResponsePanel(QWidget):
         status_padding=6 if USE_REQON_UI else 7
         status_row=row(self.status_header,(0,status_padding,8,status_padding),8)
         self.status=StatusBadge();status_row.addWidget(self.status,1)
-        self.metrics=QLabel();self.metrics.setStyleSheet(stylesheet('font-size:11px;color:#999;'))
+        self.metrics=QLabel();set_style(self.metrics,stylesheet('font-size:11px;color:#999;'))
         self.metrics.setSizePolicy(QSizePolicy.Policy.Preferred,QSizePolicy.Policy.Preferred);self.metrics.setMaximumWidth(130)
         status_row.addWidget(self.metrics)
         self.copy_button=tool('copy','Copy response',self.copy_response);self.copy_button.setFixedSize(24,24);self.copy_button.hide();status_row.addWidget(self.copy_button)
@@ -215,7 +216,7 @@ class BasePage(QWidget):
     def add_editor(self,editor):
         widget=QWidget(); layout=QVBoxLayout(widget); layout.setContentsMargins(8,0,8,0); layout.setSpacing(0)
         layout.addWidget(editor,1)
-        bottom=QFrame(); bottom.setFixedHeight(42); bottom.setStyleSheet(stylesheet('QFrame { border-top:1px solid #333; }'))
+        bottom=QFrame(); bottom.setFixedHeight(42); set_style(bottom,stylesheet('QFrame { border-top:1px solid #333; }'))
         controls=row(bottom,(4,0,0,0),8)
         controls.addWidget(tool('format','Format JSON',editor.format_json,'Format JSON'))
         controls.addWidget(editor.wrap_control()); controls.addStretch()

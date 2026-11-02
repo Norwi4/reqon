@@ -1,4 +1,5 @@
 """Auth type navigation and typed credential forms."""
+from ui_theming import set_style
 from PySide6.QtCore import Signal,Qt
 from PySide6.QtWidgets import QWidget,QVBoxLayout,QHBoxLayout,QGridLayout,QLabel,QLineEdit,QCheckBox,QStackedWidget,QScrollArea,QFrame,QPlainTextEdit,QPushButton
 from ui_components import CodeEditor
@@ -24,7 +25,7 @@ class AuthPanel(QWidget):
         super().__init__();self._syncing=False
         outer=QHBoxLayout(self);outer.setContentsMargins(0,0,0,0);outer.setSpacing(0)
         left=QFrame();left.setFixedWidth(212);left.setObjectName('authNavigation')
-        left.setStyleSheet('QFrame#authNavigation {border-right:1px solid #363636;}')
+        set_style(left,'QFrame#authNavigation {border-right:1px solid #363636;}')
         nav=QVBoxLayout(left);nav.setContentsMargins(12,16,12,16);nav.setSpacing(10)
         label=QLabel('Auth Type');label.setObjectName('muted');nav.addWidget(label)
         self.auth_type=EditorSelect(['No Auth','Basic Auth','Bearer Token','JWT Bearer','API Key'],data.get('auth_type','No Auth'));nav.addWidget(self.auth_type)
@@ -34,13 +35,13 @@ class AuthPanel(QWidget):
         nav.addStretch();outer.addWidget(left)
         self.pages=QStackedWidget();outer.addWidget(self.pages,1)
         none=QWidget();empty=QVBoxLayout(none);empty.setContentsMargins(16,42,16,16);empty.setSpacing(12)
-        symbol=QLabel('−');symbol.setAlignment(Qt.AlignmentFlag.AlignCenter);symbol.setFixedSize(48,48);symbol.setStyleSheet('background:#2b2b2b;border-radius:16px;color:#888;font-size:18px;')
-        empty.addWidget(symbol,alignment=Qt.AlignmentFlag.AlignHCenter);heading=QLabel('No Auth');heading.setAlignment(Qt.AlignmentFlag.AlignCenter);heading.setStyleSheet('font-weight:600;');empty.addWidget(heading)
+        symbol=QLabel('−');symbol.setAlignment(Qt.AlignmentFlag.AlignCenter);symbol.setFixedSize(48,48);set_style(symbol,'background:#2b2b2b;border-radius:16px;color:#888;font-size:18px;')
+        empty.addWidget(symbol,alignment=Qt.AlignmentFlag.AlignHCenter);heading=QLabel('No Auth');heading.setAlignment(Qt.AlignmentFlag.AlignCenter);set_style(heading,'font-weight:600;');empty.addWidget(heading)
         hint=QLabel('This request does not use any authorization.');hint.setObjectName('muted');hint.setAlignment(Qt.AlignmentFlag.AlignCenter);empty.addWidget(hint);empty.addStretch();self.pages.addWidget(none)
         self.auth_value=QLineEdit(data.get('auth_value',''),self);self.auth_value.hide()
         self.fields=[]
         def panel():
-            content=QWidget();content.setObjectName('httpAuthForm');content.setStyleSheet('QWidget#httpAuthForm {background:#1f1f1f;}');form=AuthForm(content);form.setContentsMargins(14,24,24,24);form.setHorizontalSpacing(24);form.setVerticalSpacing(18)
+            content=QWidget();content.setObjectName('httpAuthForm');set_style(content,'QWidget#httpAuthForm {background:#1f1f1f;}');form=AuthForm(content);form.setContentsMargins(14,24,24,24);form.setHorizontalSpacing(24);form.setVerticalSpacing(18)
             scroll=QScrollArea();scroll.setWidgetResizable(True);scroll.setFrameShape(QFrame.Shape.NoFrame);scroll.setWidget(content);self.pages.addWidget(scroll);return form
         def line(placeholder='',password=False):
             field=QLineEdit();field.setPlaceholderText(placeholder);field.setMinimumHeight(30);field.setMinimumWidth(180);field.setMaximumWidth(320)
@@ -49,17 +50,17 @@ class AuthPanel(QWidget):
         form=panel();self.username=line('Username');self.password=line('Password',True);form.addRow('Username',self.username);form.addRow('Password',self.password)
         form=panel();self.token=line('Token');form.addRow('Token',self.token)
         form=panel();self.jwt_algorithm=EditorSelect(JWT_ALGORITHMS,data.get('jwt_algorithm','HS256'));form.addRow('Algorithm',self.jwt_algorithm)
-        self.jwt_secret=QPlainTextEdit(data.get('jwt_secret',''));self.jwt_secret.setFixedHeight(34 if self.jwt_algorithm.currentText().startswith('HS') else 100);self.jwt_secret.setPlaceholderText('Secret');self.jwt_secret.setStyleSheet('QPlainTextEdit {border:1px solid #444;border-radius:3px;padding:2px;}');form.addRow('Secret',self.jwt_secret)
+        self.jwt_secret=QPlainTextEdit(data.get('jwt_secret',''));self.jwt_secret.setFixedHeight(34 if self.jwt_algorithm.currentText().startswith('HS') else 100);self.jwt_secret.setPlaceholderText('Secret');set_style(self.jwt_secret,'QPlainTextEdit {border:1px solid #444;border-radius:3px;padding:2px;}');form.addRow('Secret',self.jwt_secret)
         self.jwt_secret_base64=QCheckBox('Secret Base64 encoded');self.jwt_secret_base64.setChecked(data.get('jwt_secret_base64',False));form.addRow('',self.jwt_secret_base64)
         self.jwt_payload=CodeEditor(data.get('jwt_payload','{}'));self.jwt_payload.setFixedHeight(138);form.addRow('Payload',self.jwt_payload)
         self.advanced_button=QPushButton('⌄ Advanced configuration');self.advanced_button.setFlat(True);self.advanced_button.setCheckable(True);self.advanced_button.setChecked(True);form.addRow(self.advanced_button)
-        self.advanced_button.setStyleSheet('QPushButton {background:transparent;border:0;text-align:left;padding:8px 0;} QPushButton:hover {color:white;}')
+        set_style(self.advanced_button,'QPushButton {background:transparent;border:0;text-align:left;padding:8px 0;} QPushButton:hover {color:white;}')
         self.advanced=QWidget();advanced=AuthForm(self.advanced);advanced.setContentsMargins(0,0,0,0);advanced.setHorizontalSpacing(24);advanced.setVerticalSpacing(18)
         self.jwt_prefix=line();self.jwt_prefix.setText(data.get('jwt_prefix','Bearer'));self.prefix_label=QLabel('Request header prefix');advanced.addRow(self.prefix_label,self.jwt_prefix)
         self.jwt_query_name=line();self.jwt_query_name.setText(data.get('jwt_query_name','token'));self.query_label=QLabel('Query param name');advanced.addRow(self.query_label,self.jwt_query_name)
         self.jwt_headers=CodeEditor(data.get('jwt_headers','{}'));self.jwt_headers.setFixedHeight(138);advanced.addRow('JWT headers',self.jwt_headers)
-        for editor in (self.jwt_payload,self.jwt_headers):editor.setStyleSheet('QPlainTextEdit#codeEditor {border:1px solid #363636;border-radius:3px;padding:2px;}')
-        self.jwt_secret_base64.setStyleSheet('QCheckBox::indicator {width:12px;height:12px;border:1px solid #666;border-radius:2px;background:transparent;} QCheckBox::indicator:checked {background:#3b82f6;}')
+        for editor in (self.jwt_payload,self.jwt_headers):set_style(editor,'QPlainTextEdit#codeEditor {border:1px solid #363636;border-radius:3px;padding:2px;}')
+        set_style(self.jwt_secret_base64,'QCheckBox::indicator {width:12px;height:12px;border:1px solid #666;border-radius:2px;background:transparent;} QCheckBox::indicator:checked {background:#3b82f6;}')
         hint=QLabel('Headers specific to the algorithm are added automatically.');hint.setObjectName('muted');hint.setWordWrap(True);advanced.addRow('',hint);form.addRow(self.advanced)
         self.advanced_button.toggled.connect(self.advanced.setVisible)
         form=panel();self.api_key_name=line('Key');self.api_key_value=line('Value');self.api_key_location=EditorSelect(['Header','Query Params'],data.get('api_key_location','Header'))

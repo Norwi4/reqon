@@ -1,4 +1,5 @@
 """Anchored native gRPC method picker: loading, grouped results, and retryable errors."""
+from ui_theming import set_style,theme_qcolor,set_rich_text
 from ui_brand import stylesheet
 from PySide6.QtCore import Qt, Signal, QEvent, QPoint, QSize, QTimer
 from PySide6.QtGui import QColor, QFont, QPainter, QPen
@@ -17,8 +18,8 @@ class Spinner(QWidget):
     def hideEvent(self,event):self.timer.stop()
     def paintEvent(self,event):
         painter=QPainter(self); painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-        painter.setPen(QPen(QColor('#777777'),2)); painter.drawEllipse(3,3,12,12)
-        painter.setPen(QPen(QColor('#dddddd'),2)); painter.drawArc(3,3,12,12,self.angle*16,100*16)
+        painter.setPen(QPen(theme_qcolor('#777777'),2)); painter.drawEllipse(3,3,12,12)
+        painter.setPen(QPen(theme_qcolor('#dddddd'),2)); painter.drawArc(3,3,12,12,self.angle*16,100*16)
 
 
 class MethodSelector(QFrame):
@@ -31,13 +32,15 @@ class MethodSelector(QFrame):
 
     def __init__(self,parent=None):
         super().__init__(parent); self.setObjectName('methodSelector'); self.setMinimumWidth(200)
-        self.setStyleSheet(stylesheet('QFrame#methodSelector {border:0;} QFrame#methodSelector[expanded="true"] {border:2px solid #1685ec;border-radius:3px;}'))
+        set_style(self,stylesheet('QFrame#methodSelector {border:0;} QFrame#methodSelector[expanded="true"] {border:2px solid #1685ec;border-radius:3px;}'))
         self.state='idle'; self.methods=[]; self.selected=None; self.display=''; self.source='reflection'; self.details=''
         self.popup=None; self._expanded=False
         layout=QHBoxLayout(self); layout.setContentsMargins(6,0,2,0); layout.setSpacing(0)
-        self.symbol=QLabel(); self.symbol.setPixmap(icon('rpc','#7ca8d9').pixmap(16,16)); layout.addWidget(self.symbol)
+        self.symbol=QLabel(); self.symbol.setPixmap(icon('rpc','#8ab2e0').pixmap(16,16)); layout.addWidget(self.symbol)
         self.editor=QLineEdit(); self.editor.setPlaceholderText('Select a method'); self.editor.setReadOnly(True)
-        self.editor.setStyleSheet(stylesheet('border:0;background:transparent;padding:0 8px;')); layout.addWidget(self.editor,1)
+        from ui_typography import ui_font
+        self.editor.setFont(ui_font())
+        set_style(self.editor,stylesheet('border:0;background:transparent;padding:0 8px;')); layout.addWidget(self.editor,1)
         self.arrow=tool('chevron','Select a service and method',self.toggle); layout.addWidget(self.arrow)
         self.editor.installEventFilter(self); self.editor.textChanged.connect(self.filter_methods)
         QApplication.instance().installEventFilter(self)
@@ -46,7 +49,7 @@ class MethodSelector(QFrame):
         if self.popup is not None:return
         self.popup=QFrame(self.window()); self.popup.setObjectName('methodPopup')
         self.destroyed.connect(self.popup.deleteLater)
-        self.popup.setStyleSheet(stylesheet('''
+        set_style(self.popup,stylesheet('''
             QFrame#methodPopup {background:#242424;border:1px solid #373737;border-radius:4px;}
             QFrame#reflectionError {background:#5a1d08;border:0;border-radius:3px;}
             QListWidget {background:transparent;border:0;outline:none;}
@@ -65,7 +68,7 @@ class MethodSelector(QFrame):
         error_row=QHBoxLayout(self.error_banner); error_row.setContentsMargins(12,8,10,8); error_row.setSpacing(8)
         self.error_label=QLabel(); self.error_label.setWordWrap(True); self.error_label.setTextFormat(Qt.TextFormat.RichText)
         self.error_label.linkActivated.connect(self.toggle_details); error_row.addWidget(self.error_label,1)
-        self.retry=QPushButton('Try Again'); self.retry.setStyleSheet(stylesheet('background:transparent;border:1px solid #926047;padding:6px 12px;')); self.retry.clicked.connect(self.refresh_requested.emit); error_row.addWidget(self.retry)
+        self.retry=QPushButton('Try Again'); set_style(self.retry,stylesheet('background:transparent;border:1px solid #926047;padding:6px 12px;')); self.retry.clicked.connect(self.refresh_requested.emit); error_row.addWidget(self.retry)
         root.addWidget(self.error_banner)
         self.error_details=QPlainTextEdit(); self.error_details.setReadOnly(True); self.error_details.setFixedHeight(104); root.addWidget(self.error_details)
         self.choices=QWidget(); choices=QVBoxLayout(self.choices); choices.setContentsMargins(0,0,0,8); choices.setSpacing(8)
@@ -73,7 +76,7 @@ class MethodSelector(QFrame):
         self.no_schema=QLabel('No Protobuf schemas available.'); self.no_schema.setObjectName('hint'); choices.addWidget(self.no_schema)
         self.import_button=QPushButton('  Import a .proto file'); self.import_button.setObjectName('importChoice'); self.import_button.setIcon(icon('download')); self.import_button.clicked.connect(self.import_requested.emit); choices.addWidget(self.import_button)
         description=QLabel('      Select a .proto file or descriptor set from your local system.'); description.setObjectName('hint'); description.setWordWrap(True); choices.addWidget(description)
-        separator=QFrame(); separator.setFixedHeight(1); separator.setStyleSheet(stylesheet('background:#3b3b3b;')); choices.addWidget(separator)
+        separator=QFrame(); separator.setFixedHeight(1); set_style(separator,stylesheet('background:#3b3b3b;')); choices.addWidget(separator)
         reflect_row=QHBoxLayout(); reflect_row.setContentsMargins(0,0,0,0); reflect_row.setSpacing(6)
         self.spinner=Spinner(); reflect_row.addWidget(self.spinner)
         self.reflection_symbol=QLabel(); self.reflection_symbol.setPixmap(icon('reflection').pixmap(18,18)); reflect_row.addWidget(self.reflection_symbol)
@@ -96,6 +99,13 @@ class MethodSelector(QFrame):
     def setText(self,text):
         self.display=text
         if not self._expanded:self.editor.setText(text)
+    def refresh_theme(self):
+        self.symbol.setPixmap(icon('rpc','#8ab2e0').pixmap(16,16))
+        if self.popup is not None:
+            self.reflection_symbol.setPixmap(icon('reflection').pixmap(18,18))
+            for index in range(self.list.count()):
+                item=self.list.item(index)
+                if not item.data(Qt.ItemDataRole.UserRole):item.setForeground(theme_qcolor('#aaaaaa'))
     def text(self):return self.display
     def set_selected(self,service,method):
         self.selected=(service,method)
@@ -169,7 +179,7 @@ class MethodSelector(QFrame):
         self.error_banner.setVisible(failed); self.error_details.hide(); self.choices.setVisible(not ready)
         self.no_schema.setVisible(failed); self.spinner.setVisible(loading); self.reflection_button.setEnabled(not loading)
         self.reflection_symbol.setVisible(not loading)
-        self.error_label.setText(('Could not load server reflection.' if self.source=='reflection' else 'Could not load service definition.')+' <a href="details" style="color:#eeeeee;text-decoration:underline">View error details</a>')
+        set_rich_text(self.error_label,('Could not load server reflection.' if self.source=='reflection' else 'Could not load service definition.')+' <a href="details" style="color:#eeeeee;text-decoration:underline">View error details</a>')
         self.error_details.setPlainText(self.details)
         self.reflection_note.setText('      Loading server reflection.' if loading and self.source=='reflection' else '      Loading service definition.' if loading else '      '+self.details if self.state=='idle' else '      Load methods using server reflection.')
         self.list.setVisible(ready); self.footer.setVisible(ready); self.empty.hide()
@@ -186,10 +196,11 @@ class MethodSelector(QFrame):
             if all(term in f'{service} {method}'.casefold() for term in terms):groups.setdefault(service,[]).append(method)
         self.list.clear(); first=None; selected=None
         for service,methods in sorted(groups.items()):
-            header=QListWidgetItem(service); header.setFlags(Qt.ItemFlag.ItemIsEnabled); header.setForeground(QColor('#aaaaaa'))
-            font=QFont(); font.setPixelSize(11); font.setBold(True); header.setFont(font); header.setSizeHint(QSize(0,30)); self.list.addItem(header)
+            header=QListWidgetItem(service); header.setFlags(Qt.ItemFlag.ItemIsEnabled); header.setForeground(theme_qcolor('#aaaaaa'))
+            from ui_typography import ui_font
+            header.setFont(ui_font(11,QFont.Weight.DemiBold)); header.setSizeHint(QSize(0,30)); self.list.addItem(header)
             for method in sorted(methods):
-                item=QListWidgetItem(icon('rpc','#80b3d5'),'  '+method); item.setSizeHint(QSize(0,29)); item.setData(Qt.ItemDataRole.UserRole,(service,method)); self.list.addItem(item)
+                item=QListWidgetItem(icon('rpc','#80b3d5'),'  '+method);item.setFont(ui_font()); item.setSizeHint(QSize(0,29)); item.setData(Qt.ItemDataRole.UserRole,(service,method)); self.list.addItem(item)
                 if first is None:first=item
                 if self.selected==(service,method):selected=item
         self.empty.setText('No services or methods match your search.' if self.methods else 'The server returned no services or methods.')

@@ -3,6 +3,7 @@ from PySide6.QtCore import Qt, QEvent, QTimer, QPoint, Signal
 from PySide6.QtGui import QCursor
 from PySide6.QtWidgets import QFrame, QVBoxLayout, QLabel, QToolButton
 from ui_components import icon
+from ui_theming import set_rich_text
 
 
 class TLSButton(QToolButton):
@@ -20,7 +21,7 @@ class TLSButton(QToolButton):
         self.state=QLabel(); self.state.setObjectName('tlsState'); layout.addWidget(self.state)
         self.description=QLabel(); self.description.setWordWrap(True); self.description.setObjectName('muted'); layout.addWidget(self.description)
         layout.addSpacing(7)
-        self.link=QLabel('<a href="certificates" style="color:#b5b5b5">Configure additional CA and client certificates</a>')
+        self.link=QLabel();set_rich_text(self.link,'<a href="certificates" style="color:#b5b5b5">Configure additional CA and client certificates</a>')
         self.link.setTextInteractionFlags(Qt.TextInteractionFlag.LinksAccessibleByMouse|Qt.TextInteractionFlag.LinksAccessibleByKeyboard)
         self.link.linkActivated.connect(self.configure); layout.addWidget(self.link)
         self.show_timer=QTimer(self); self.show_timer.setSingleShot(True); self.show_timer.setInterval(250); self.show_timer.timeout.connect(self.show_card)

@@ -1,4 +1,5 @@
 """Body modes, multipart fields, files and GraphQL query/variables editors."""
+from ui_theming import set_style
 from pathlib import Path
 from PySide6.QtCore import Qt,Signal
 from PySide6.QtWidgets import (QWidget,QVBoxLayout,QHBoxLayout,QLabel,QLineEdit,QPushButton,QStackedWidget,
@@ -34,13 +35,13 @@ class MultipartTable(KeyValueTable):
         if values[0]:check.setCheckState(Qt.CheckState.Checked if len(values)<4 or values[3] else Qt.CheckState.Unchecked)
         table.setItem(row,0,check)
         for column,value in [(1,values[0]),(3,values[1]),(4,values[2] if len(values)>2 else '')]:table.setItem(row,column,QTableWidgetItem(str(value)))
-        kind=EditorSelect(['Text','File'],values[4] if len(values)>4 else 'Text');kind.setMinimumWidth(0);kind.setStyleSheet('QComboBox {border:0;background:#1f1f1f;padding:0 8px;}');table.setCellWidget(row,2,kind)
+        kind=EditorSelect(['Text','File'],values[4] if len(values)>4 else 'Text');kind.setMinimumWidth(0);set_style(kind,'QComboBox {border:0;background:#1f1f1f;padding:0 8px;}');table.setCellWidget(row,2,kind)
         kind.currentTextChanged.connect(lambda *_:self._kind(row));self._kind(row,notify=False)
     def _kind(self,row,notify=True):
         table=self.table;kind=table.cellWidget(row,2).currentText()
         if kind=='File':
-            panel=QWidget();panel.setAutoFillBackground(True);panel.setStyleSheet('background:#1f1f1f;');layout=QHBoxLayout(panel);layout.setContentsMargins(4,0,2,0);layout.setSpacing(2)
-            field=QLineEdit(table.item(row,3).text());field.setPlaceholderText('Select file');field.setStyleSheet('border:0;background:transparent;');layout.addWidget(field,1)
+            panel=QWidget();panel.setAutoFillBackground(True);set_style(panel,'background:#1f1f1f;');layout=QHBoxLayout(panel);layout.setContentsMargins(4,0,2,0);layout.setSpacing(2)
+            field=QLineEdit(table.item(row,3).text());field.setPlaceholderText('Select file');set_style(field,'border:0;background:transparent;');layout.addWidget(field,1)
             field.textChanged.connect(lambda text:table.item(row,3).setText(text));layout.addWidget(tool('folder','Select file',lambda:choose_file(self,field.setText)));table.setCellWidget(row,3,panel)
         else:table.removeCellWidget(row,3)
         if notify:self.changed.emit()
@@ -67,7 +68,7 @@ class BodyPanel(QWidget):
         if not inferred:inferred='JSON' if not data.get('body','').strip() or data.get('body','').lstrip().startswith(('{','[')) else 'Text'
         self.raw_language=EditorSelect(list(RAW_TYPES),data.get('raw_language',inferred));self.raw_language.setFixedWidth(110);controls.addWidget(self.raw_language)
         controls.addStretch();self.schema=tool('settings','Local request schema',self.choose_schema,'Schema');controls.addWidget(self.schema)
-        self.beautify=QPushButton('Beautify');self.beautify.setFlat(True);self.beautify.setStyleSheet('color:#3b82f6;font-weight:600;');self.beautify.clicked.connect(self.format_body);controls.addWidget(self.beautify)
+        self.beautify=QPushButton('Beautify');self.beautify.setFlat(True);set_style(self.beautify,'color:#3b82f6;font-weight:600;');self.beautify.clicked.connect(self.format_body);controls.addWidget(self.beautify)
         self.bulk=tool('docs','Bulk edit body fields',self.bulk_edit,'Bulk Edit');controls.addWidget(self.bulk);layout.addWidget(toolbar)
         self.stack=QStackedWidget();layout.addWidget(self.stack,1)
         none=QWidget();empty=QVBoxLayout(none);label=QLabel('This request does not have a body.');label.setObjectName('muted');label.setAlignment(Qt.AlignmentFlag.AlignCenter);empty.addWidget(label);self.stack.addWidget(none)
@@ -81,7 +82,7 @@ class BodyPanel(QWidget):
         self.graphql_query=CodeEditor(data.get('graphql_query',''));self.graphql_variables=CodeEditor(data.get('graphql_variables',''));self.graphql_variables.setPlaceholderText('{}')
         if hasattr(self.graphql_query,'presentation'):self.graphql_query.presentation.mode='text';self.graphql_variables.presentation.mode='json'
         for heading,editor in [('QUERY',self.graphql_query),('GRAPHQL VARIABLES',self.graphql_variables)]:
-            pane=QWidget();section=QVBoxLayout(pane);section.setContentsMargins(0,0,0,0);section.setSpacing(6);label=QLabel(heading);label.setStyleSheet('font-size:11px;font-weight:600;');section.addWidget(label);section.addWidget(editor,1);graphql.addWidget(pane)
+            pane=QWidget();section=QVBoxLayout(pane);section.setContentsMargins(0,0,0,0);section.setSpacing(6);label=QLabel(heading);set_style(label,'font-size:11px;font-weight:600;');section.addWidget(label);section.addWidget(editor,1);graphql.addWidget(pane)
         graphql.setSizes([500,350]);self.stack.addWidget(graphql)
         self.body_type.currentTextChanged.connect(self.mode_changed)
         for field in (self.body,self.body_file,self.graphql_query,self.graphql_variables):field.textChanged.connect(self.changed)

@@ -1,4 +1,5 @@
 """Settings drawn inside the main widget: no dialog, native window or taskbar entry."""
+from ui_theming import set_style,theme_qcolor
 from PySide6.QtCore import Qt,QEvent,QTimer
 from PySide6.QtGui import QPainter,QColor,QIntValidator,QPen,QPainterPath
 from PySide6.QtWidgets import (QWidget,QFrame,QVBoxLayout,QHBoxLayout,QGridLayout,QLabel,
@@ -14,26 +15,28 @@ class ProxySwitch(ToggleSwitch):
         super().__init__(label,checked);self.setFixedSize(34,24)
     def paintEvent(self,event):
         painter=QPainter(self);painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-        painter.setPen(Qt.PenStyle.NoPen);painter.setBrush(QColor('#008cff' if self.isChecked() else '#444444'))
-        painter.drawRoundedRect(3,6,28,14,7,7);painter.setBrush(QColor('#ffffff'))
+        painter.setPen(Qt.PenStyle.NoPen);painter.setBrush(theme_qcolor('#008cff' if self.isChecked() else '#444444'))
+        from ui_palettes import current_theme
+        painter.drawRoundedRect(3,6,28,14,7,7);painter.setBrush(QColor(current_theme().colors['action_text'] if self.isChecked() else '#ffffff'))
         painter.drawEllipse(18 if self.isChecked() else 5,8,10,10)
         if self.hasFocus():
-            painter.setPen(QColor('#89c6ff'));painter.setBrush(Qt.BrushStyle.NoBrush);painter.drawRoundedRect(1,3,32,20,10,10)
+            painter.setPen(theme_qcolor('#89c6ff'));painter.setBrush(Qt.BrushStyle.NoBrush);painter.drawRoundedRect(1,3,32,20,10,10)
 
 
 class SettingsCheckBox(QCheckBox):
     def paintEvent(self,event):
         painter=QPainter(self);painter.setRenderHint(QPainter.RenderHint.Antialiasing)
         y=(self.height()-14)//2
-        painter.setPen(QPen(QColor('#008cff' if self.isChecked() else '#777777'),1))
-        painter.setBrush(QColor('#008cff' if self.isChecked() else '#212121'));painter.drawRoundedRect(1,y,13,13,2,2)
+        painter.setPen(QPen(theme_qcolor('#008cff' if self.isChecked() else '#777777'),1))
+        painter.setBrush(theme_qcolor('#008cff' if self.isChecked() else '#212121'));painter.drawRoundedRect(1,y,13,13,2,2)
         if self.isChecked():
             path=QPainterPath();path.moveTo(4,y+6);path.lineTo(7,y+9);path.lineTo(11,y+4)
-            painter.setPen(QPen(QColor('white'),1.6));painter.drawPath(path)
-        painter.setFont(self.font());painter.setPen(QColor('#e6e6e6'))
+            from ui_palettes import current_theme
+            painter.setPen(QPen(QColor(current_theme().colors['action_text']),1.6));painter.drawPath(path)
+        painter.setFont(self.font());painter.setPen(theme_qcolor('#e6e6e6'))
         painter.drawText(self.rect().adjusted(22,0,0,0),Qt.AlignmentFlag.AlignVCenter,self.text())
         if self.hasFocus():
-            painter.setPen(QPen(QColor('#89c6ff'),1,Qt.PenStyle.DotLine));painter.setBrush(Qt.BrushStyle.NoBrush);painter.drawRect(self.rect().adjusted(0,0,-1,-1))
+            painter.setPen(QPen(theme_qcolor('#89c6ff'),1,Qt.PenStyle.DotLine));painter.setBrush(Qt.BrushStyle.NoBrush);painter.drawRect(self.rect().adjusted(0,0,-1,-1))
 
 
 class SettingsOverlay(QWidget):
@@ -45,13 +48,13 @@ class SettingsOverlay(QWidget):
         outer=QHBoxLayout(self.panel);outer.setContentsMargins(0,0,0,0);outer.setSpacing(0)
         self.nav=QFrame();self.nav.setObjectName('settingsNavigation');self.nav.setFixedWidth(226)
         nav=QVBoxLayout(self.nav);nav.setContentsMargins(24,28,24,24);nav.setSpacing(3);self.navigation={}
-        for label,glyph in [('General','settings'),('Themes','star'),('Shortcuts','console'),('Data','save'),
+        for label,glyph in [('General','settings'),('Themes','palette'),('Shortcuts','console'),('Data','save'),
                             ('Add-ons','plus'),('Certificates','lock'),('Proxy','proxy'),('Update','download'),('About','docs')]:
             button=QPushButton(label);button.setIcon(icon(glyph));button.setFixedHeight(34);button.setCheckable(True)
             button.setAutoExclusive(True)
-            button.setObjectName('settingsNavItem');button.setChecked(label=='General');button.setEnabled(label in ('General','Proxy'))
-            if label not in ('General','Proxy'):button.setToolTip('Not available yet')
-            else:button.clicked.connect(lambda checked=False,label=label:self.pages.setCurrentIndex(0 if label=='General' else 1))
+            button.setObjectName('settingsNavItem');button.setChecked(label=='General');button.setEnabled(label in ('General','Proxy','Themes'))
+            if label not in ('General','Proxy','Themes'):button.setToolTip('Not available yet')
+            else:button.clicked.connect(lambda checked=False,label=label:self.pages.setCurrentIndex({'General':0,'Proxy':1,'Themes':2}[label]))
             self.navigation[label]=button;nav.addWidget(button)
         nav.addStretch();outer.addWidget(self.nav)
         right=QWidget();right_layout=QVBoxLayout(right);right_layout.setContentsMargins(0,0,0,0);right_layout.setSpacing(0)
@@ -98,6 +101,10 @@ class SettingsOverlay(QWidget):
         self.general_scroll.setFrameShape(QFrame.Shape.NoFrame);self.general_scroll.setWidget(self.general)
         self.general_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.pages=QStackedWidget();self.pages.addWidget(self.general_scroll);self.pages.addWidget(self.scroll)
+        from ui_themes import ThemesPage
+        self.themes=ThemesPage(self);self.themes_scroll=QScrollArea();self.themes_scroll.setWidgetResizable(True)
+        self.themes_scroll.setFrameShape(QFrame.Shape.NoFrame);self.themes_scroll.setWidget(self.themes)
+        self.themes_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff);self.pages.addWidget(self.themes_scroll)
         right_layout.addWidget(self.pages);outer.addWidget(right,1)
         self.close_button=tool('close','Close settings',self.dismiss,parent=self.panel);self.close_button.setFixedSize(30,30)
         self.close_button.setObjectName('settingsClose')
@@ -105,10 +112,10 @@ class SettingsOverlay(QWidget):
         for widget in (self.system,self.environment,self.custom,self.http,self.https,self.system_auth,self.auth):widget.toggled.connect(self.changed)
         for widget in (self.host,self.port,self.username,self.password,self.system_username,self.system_password):widget.textChanged.connect(self.changed)
         self.protocol.currentIndexChanged.connect(self.changed);self.bypass.textChanged.connect(self.changed)
-        self.setStyleSheet('''
+        set_style(self,'''
           QFrame#settingsCard {background:#212121;border-radius:7px;}
           QFrame#settingsNavigation {background:#262626;border-top-left-radius:7px;border-bottom-left-radius:7px;}
-          QWidget#proxySettings,QWidget#generalSettings {background:#212121;}
+          QWidget#proxySettings,QWidget#generalSettings,QWidget#themesSettings {background:#212121;}
           QPushButton#settingsNavItem {border:0;text-align:left;background:transparent;padding:6px 10px;font-size:12px;font-weight:500;}
           QPushButton#settingsNavItem:checked {background:#3b3b3b;color:#f2f2f2;}
           QPushButton#settingsNavItem:disabled {color:#8e8e8e;}
@@ -136,7 +143,7 @@ class SettingsOverlay(QWidget):
         frame=QFrame();frame.setObjectName('proxySetting');row=QHBoxLayout(frame);row.setContentsMargins(0,13,0,13);row.setSpacing(12)
         labels=QVBoxLayout();labels.setContentsMargins(0,0,0,0);labels.setSpacing(4)
         labels.setAlignment(Qt.AlignmentFlag.AlignVCenter)
-        name=QLabel(title);name.setWordWrap(True);name.setStyleSheet('font-size:12px;font-weight:500;');labels.addWidget(name)
+        name=QLabel(title);name.setWordWrap(True);set_style(name,'font-size:12px;font-weight:500;');labels.addWidget(name)
         if description:
             text=QLabel(description);text.setWordWrap(True);text.setObjectName('settingsDescription');labels.addWidget(text)
         row.addLayout(labels,1);row.addWidget(control);(layout or self.form).addWidget(frame)
@@ -162,7 +169,7 @@ class SettingsOverlay(QWidget):
         socks4=self.protocol.currentText() in ('socks4','socks4a');self.password.setEnabled(not socks4)
         self.socks_note.setVisible(socks4)
         error=self.collect().error();self.validation.setText(error);self.validation.setVisible(bool(error))
-        self.host.setStyleSheet('border-color:#d97b6c;' if error and 'host' in error.lower() else '')
+        set_style(self.host,'border-color:#d97b6c;' if error and 'host' in error.lower() else '')
 
     def changed(self,*_):
         self.update_fields();self.status.setText('Saving…');self.timer.start()

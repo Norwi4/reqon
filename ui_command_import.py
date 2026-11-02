@@ -1,4 +1,5 @@
 """Native command import with an editable source and a preview before creating a tab."""
+from ui_theming import set_style
 from PySide6.QtCore import Qt,QTimer
 from PySide6.QtWidgets import (QDialog,QVBoxLayout,QHBoxLayout,QLabel,QPushButton,QComboBox,
                                QPlainTextEdit,QApplication,QDialogButtonBox)
@@ -42,10 +43,10 @@ class CommandImportDialog(QDialog):
         self.timer.stop(); self.candidate=None; self.import_button.setEnabled(False)
         text=self.editor.toPlainText()
         if not text.strip():
-            self.preview.clear(); self.feedback.setText('The command is parsed locally. Import does not send a request.'); self.feedback.setObjectName('muted'); self.feedback.setStyleSheet(''); return
+            self.preview.clear(); self.feedback.setText('The command is parsed locally. Import does not send a request.'); self.feedback.setObjectName('muted'); set_style(self.feedback,''); return
         try:self.candidate=parse_command(text,self.shell.currentData())
         except ValueError as error:
-            self.preview.clear(); self.feedback.setText(str(error)); self.feedback.setStyleSheet('color:#e79591;'); return
+            self.preview.clear(); self.feedback.setText(str(error)); set_style(self.feedback,'color:#e79591;'); return
         data=self.candidate.data
         if data['kind']=='grpc':
             summary=f"gRPC · {data['service']}/{data['rpc_method']}\n{data['server']} · {len(data['metadata'])} metadata · {'TLS' if data['tls'] else 'Plaintext'}"
@@ -53,7 +54,7 @@ class CommandImportDialog(QDialog):
             summary=f"{data['method']} · {data['url']}\n{len(data['params'])} parameters · {len(data['headers'])} headers · Body: {data['body_type']}"
         self.preview.setText(summary)
         self.feedback.setText('\n'.join(self.candidate.notes) or 'Ready to import. The new request will be saved as a local draft.')
-        self.feedback.setStyleSheet('color:#d3b47b;' if self.candidate.notes else '')
+        set_style(self.feedback,'color:#d3b47b;' if self.candidate.notes else '')
         self.import_button.setEnabled(True)
 
     def apply(self):

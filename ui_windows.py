@@ -1,4 +1,5 @@
 """Optional Windows widgets; no network or persistence format changes."""
+from ui_theming import theme_qcolor
 import json
 from PySide6.QtCore import Qt,QEvent,QTimer,QPoint,QSize,QObject
 from PySide6.QtGui import QPainter,QColor,QKeySequence,QShortcut
@@ -81,10 +82,10 @@ class RequestTabs(QTabBar):
         self.update()
     def paintEvent(self,event):
         super().paintEvent(event);painter=QPainter(self);painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-        painter.setPen(QColor(C['border']))
+        painter.setPen(theme_qcolor(C['border']))
         for i in range(self.count()):
             rect=self.tabRect(i);painter.drawLine(rect.right(),rect.top()+9,rect.right(),rect.bottom()-9)
-        painter.setPen(Qt.PenStyle.NoPen);painter.setBrush(QColor(C['accent']))
+        painter.setPen(Qt.PenStyle.NoPen);painter.setBrush(theme_qcolor(C['accent']))
         for i in range(self.count()):
             if getattr(self.parent().widget(i),'_presentation_dirty',False):
                 rect=self.tabRect(i);painter.drawEllipse(QPoint(rect.left()+23,rect.center().y()+7),3,3)

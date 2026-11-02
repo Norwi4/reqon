@@ -1,4 +1,5 @@
 """Per-request HTTP settings with explicit General defaults."""
+from ui_theming import set_style,set_rich_text
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QWidget,QVBoxLayout,QHBoxLayout,QCheckBox,QDoubleSpinBox,QLineEdit,QLabel,QScrollArea,QFrame,QSpinBox
 from ui_editor_controls import EditorSelect,CheckSelect
@@ -7,16 +8,16 @@ from http_features import REQUEST_DEFAULTS
 
 
 def settings_tab(page,data):
-    widget=QWidget();widget.setObjectName('httpSettingsContent');widget.setStyleSheet('QWidget#httpSettingsContent {background:#1f1f1f;} QSpinBox,QDoubleSpinBox {background:#252525;color:#f5f7fa;border:1px solid #444;border-radius:3px;padding:6px;}');layout=QVBoxLayout(widget);layout.setContentsMargins(16,8,24,20);layout.setSpacing(0)
+    widget=QWidget();widget.setObjectName('httpSettingsContent');set_style(widget,'QWidget#httpSettingsContent {background:#1f1f1f;} QSpinBox,QDoubleSpinBox {background:#252525;color:#f5f7fa;border:1px solid #444;border-radius:3px;padding:6px;}');layout=QVBoxLayout(widget);layout.setContentsMargins(16,8,24,20);layout.setSpacing(0)
     page.http_extra_fields={}
     def row(name,title,description,field,default=None):
         setattr(page,name,field)
         container=QWidget();line=QHBoxLayout(container);line.setContentsMargins(0,12,0,12);line.setSpacing(24)
-        copy=QVBoxLayout();copy.setSpacing(5);heading=QLabel(title);heading.setStyleSheet('font-weight:600;');copy.addWidget(heading)
+        copy=QVBoxLayout();copy.setSpacing(5);heading=QLabel(title);set_style(heading,'font-weight:600;');copy.addWidget(heading)
         hint=QLabel(description);hint.setWordWrap(True);hint.setObjectName('muted');copy.addWidget(hint);line.addLayout(copy,2)
         control=QVBoxLayout();control.setSpacing(5);control.addWidget(field,alignment=Qt.AlignmentFlag.AlignLeft)
         if default:
-            link=QLabel('Default: <a href="settings" style="color:#3b82f6;text-decoration:none">'+default+'</a>');link.linkActivated.connect(lambda _:page.window().show_settings());control.addWidget(link)
+            link=QLabel();set_rich_text(link,'Default: <a href="settings" style="color:#3b82f6;text-decoration:none">'+default+'</a>');link.linkActivated.connect(lambda _:page.window().show_settings());control.addWidget(link)
         line.addLayout(control,1);layout.addWidget(container)
     def toggle(name,title,description,default=False,general=None):
         field=ToggleSwitch(title,data.get(name,default));row(name,title,description,field,general)

@@ -7,6 +7,7 @@ from PySide6.QtCore import Qt,QRectF,QSize,QCoreApplication
 from PySide6.QtGui import QPainter,QPixmap
 from PySide6.QtWidgets import QWidget,QVBoxLayout,QLabel,QSizePolicy
 from ui_brand import asset_path
+from ui_palettes import current_theme
 
 
 def state_root():return Path(getattr(sys,'_MEIPASS',Path(__file__).resolve().parent))/'reqon-ui-states v2'
@@ -39,7 +40,8 @@ class StateIllustration(QWidget):
             self.state=None;self.asset_id=None;self.pixmap=QPixmap(str(asset_path('png/transparent/reqon-512.png')));self.update();return
         self.asset_id=STATE_ASSETS.get(state,state)
         if self.asset_id not in state_manifest():raise ValueError('Unknown UI state: '+state)
-        self.state=state;self.pixmap=QPixmap(str(state_root()/state_manifest()[self.asset_id]['dark']))
+        self.state=state;self.variant='dark' if current_theme().dark else 'light'
+        self.pixmap=QPixmap(str(state_root()/state_manifest()[self.asset_id][self.variant]))
         if self.pixmap.isNull():raise ValueError('Cannot load UI state: '+state)
         self.update()
     def paintEvent(self,event):

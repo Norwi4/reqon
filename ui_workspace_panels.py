@@ -1,4 +1,5 @@
 """Workspace information, notification and docked request console."""
+from ui_theming import set_style,set_rich_text
 from PySide6.QtCore import Qt,QTimer,QEvent
 from PySide6.QtWidgets import QDialog,QFrame,QWidget,QVBoxLayout,QHBoxLayout,QLabel,QPushButton,QLineEdit,QPlainTextEdit,QStackedWidget,QApplication
 from ui_components import tool
@@ -10,18 +11,18 @@ class InfoDialog(QDialog):
         super().__init__(parent);self.setWindowTitle('Reqon Info');self.setModal(True);self.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose);self.setFixedWidth(440)
         layout=QVBoxLayout(self);layout.setContentsMargins(28,28,28,24);layout.setSpacing(18)
         logo=QLabel();logo.setPixmap(brand_icon().pixmap(48,48));layout.addWidget(logo)
-        title=QLabel('Reqon');title.setStyleSheet('font-size:24px;font-weight:600;');layout.addWidget(title)
+        title=QLabel('Reqon');set_style(title,'font-size:24px;font-weight:600;');layout.addWidget(title)
         self.version_label=QLabel('Version '+VERSION);self.version_label.setObjectName('muted');layout.addWidget(self.version_label)
         text=QLabel('Something is not working as expected? Report a bug or suggest an improvement in the project’s GitHub Issues.');text.setWordWrap(True);layout.addWidget(text)
-        self.issues_link=QLabel('<a href="https://github.com/Norwi4/reqon/issues" style="color:#3b82f6;text-decoration:none">Open GitHub Issues ↗</a>');self.issues_link.setOpenExternalLinks(True);layout.addWidget(self.issues_link)
+        self.issues_link=QLabel();set_rich_text(self.issues_link,'<a href="https://github.com/Norwi4/reqon/issues" style="color:#3b82f6;text-decoration:none">Open GitHub Issues ↗</a>');self.issues_link.setOpenExternalLinks(True);layout.addWidget(self.issues_link)
         bottom=QHBoxLayout();bottom.addStretch();close=QPushButton('Close');close.clicked.connect(self.accept);bottom.addWidget(close);layout.addLayout(bottom)
 
 
 class Toast(QFrame):
     def __init__(self,parent,title,message):
-        super().__init__(parent);self.setObjectName('requestToast');self.setStyleSheet('QFrame#requestToast {background:#2b2b2b;border:1px solid #484848;border-radius:6px;}')
+        super().__init__(parent);self.setObjectName('requestToast');set_style(self,'QFrame#requestToast {background:#2b2b2b;border:1px solid #484848;border-radius:6px;}')
         self.setFixedWidth(min(370,parent.width()-32));layout=QVBoxLayout(self);layout.setContentsMargins(16,12,12,14);layout.setSpacing(8)
-        head=QHBoxLayout();label=QLabel(title);label.setStyleSheet('font-weight:600;');head.addWidget(label);head.addStretch();head.addWidget(tool('close','Dismiss',self.deleteLater));layout.addLayout(head)
+        head=QHBoxLayout();label=QLabel(title);set_style(label,'font-weight:600;');head.addWidget(label);head.addStretch();head.addWidget(tool('close','Dismiss',self.deleteLater));layout.addLayout(head)
         label=QLabel(message);label.setWordWrap(True);label.setObjectName('muted');layout.addWidget(label);self.adjustSize()
         parent.installEventFilter(self);self.place();self.show();self.raise_();QTimer.singleShot(6000,self.deleteLater)
     def place(self):self.move(self.parentWidget().width()-self.width()-20,self.parentWidget().height()-self.height()-42)
@@ -47,9 +48,9 @@ class ConsolePanel(QFrame):
         line.addWidget(tool('copy','Copy console',lambda:QApplication.clipboard().setText(self.output.toPlainText())))
         self.expand=tool('maximize','Expand console',self.toggle_expand);self.expand.setCheckable(True);line.addWidget(self.expand);line.addWidget(tool('close','Close console',window.show_console));layout.addWidget(bar)
         self.stack=QStackedWidget();layout.addWidget(self.stack,1);empty=QWidget();center=QVBoxLayout(empty);center.addStretch()
-        title=QLabel('No logs yet');title.setAlignment(Qt.AlignmentFlag.AlignCenter);title.setStyleSheet('font-size:18px;font-weight:600;');center.addWidget(title)
+        title=QLabel('No logs yet');title.setAlignment(Qt.AlignmentFlag.AlignCenter);set_style(title,'font-size:18px;font-weight:600;');center.addWidget(title)
         hint=QLabel('Send a request to view its details in the console.');hint.setObjectName('muted');hint.setAlignment(Qt.AlignmentFlag.AlignCenter);center.addWidget(hint);center.addStretch();self.stack.addWidget(empty)
-        self.output=QPlainTextEdit();self.output.setReadOnly(True);self.output.setStyleSheet('border:0;border-top:1px solid #363636;padding:8px;font-family:monospace;');self.stack.addWidget(self.output);self.hide()
+        self.output=QPlainTextEdit();self.output.setReadOnly(True);set_style(self.output,'border:0;border-top:1px solid #363636;padding:8px;font-family:monospace;');self.stack.addWidget(self.output);self.hide()
     def refresh(self,*_):
         query=self.search.text().casefold();entries=self.window.console_entries
         text='\n'.join(entry for entry in entries if query in entry.casefold());bar=self.output.verticalScrollBar();at_end=bar.value()>=bar.maximum();position=bar.value()

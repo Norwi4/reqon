@@ -1,3 +1,4 @@
+from ui_theming import set_style
 from ui_brand import PROTOCOL_COLORS
 from PySide6.QtCore import Qt, QSize, QEvent, QObject, QUrl, QRectF
 from PySide6.QtGui import QDesktopServices, QFont, QPainterPath, QRegion
@@ -75,7 +76,7 @@ def build_shell(window):
     local=QLabel('Local workspace'); local.setObjectName('localBadge'); top.addWidget(local)
     window.settings_button=tool('settings','Settings',window.show_settings);window.settings_button.setIconSize(QSize(21,21));window.settings_button.setFixedSize(36,36);top.addWidget(window.settings_button)
     window.info_button=QPushButton('Info');window.info_button.setFixedSize(72,30);window.info_button.setCursor(Qt.CursorShape.PointingHandCursor)
-    window.info_button.setStyleSheet('QPushButton {background:#ff6c37;color:white;border:0;border-radius:4px;font-weight:600;} QPushButton:hover {background:#ff824f;}');window.info_button.clicked.connect(window.show_info);top.addWidget(window.info_button);top.addSpacing(8)
+    set_style(window.info_button,'QPushButton {background:#ff6c37;color:white;border:0;border-radius:4px;font-weight:600;} QPushButton:hover {background:#ff824f;}');window.info_button.clicked.connect(window.show_info);top.addWidget(window.info_button);top.addSpacing(8)
     for image,tip,fn in [('minimize','Minimize',window.showMinimized),('maximize','Maximize / Restore',titlebar.toggle_maximize),('close','Close',window.close)]:
         button=tool(image,tip,fn); button.setFixedSize(46,46)
         if image=='close':button.setObjectName('windowClose')
@@ -87,7 +88,7 @@ def build_shell(window):
     left_layout=QVBoxLayout(left); left_layout.setContentsMargins(0,0,0,0); left_layout.setSpacing(0)
     workspace_head=QFrame(); workspace_head.setObjectName('workspaceHead'); workspace_head.setFixedHeight(TAB_HEIGHT if USE_REQON_UI else 40)
     head=QHBoxLayout(workspace_head); head.setContentsMargins(14,0,8,0); head.setSpacing(4)
-    head.addWidget(tool('workspace','Local workspace')); workspace_name=QLabel('My Workspace'); workspace_name.setStyleSheet(stylesheet('font-weight:600')); head.addWidget(workspace_name); head.addStretch()
+    head.addWidget(tool('workspace','Local workspace')); workspace_name=QLabel('My Workspace'); set_style(workspace_name,stylesheet('font-weight:600')); head.addWidget(workspace_name); head.addStretch()
     window.new_menu=QMenu(window)
     window.new_menu.addAction(icon('http',PROTOCOL_COLORS['http']),'HTTP request',lambda:window.new_request())
     window.new_menu.addAction(icon('grpc',PROTOCOL_COLORS['grpc']),'gRPC request',lambda:window.new_grpc_request())
@@ -145,7 +146,7 @@ def build_shell(window):
         from ui_environments import EnvironmentCombo
         window.env_combo=EnvironmentCombo()
     else:window.env_combo=QComboBox()
-    window.env_combo.setFixedWidth(164); window.env_combo.setStyleSheet(stylesheet('border:0;background:#212121;')); window.env_combo.addItem('No environment',None)
+    window.env_combo.setFixedWidth(164); set_style(window.env_combo,stylesheet('border:0;background:#212121;')); window.env_combo.addItem('No environment',None)
     corner_layout.addWidget(window.env_combo); window.workbench.setCornerWidget(corner,Qt.Corner.TopRightCorner)
     splitter.addWidget(window.workbench); splitter.setSizes([378,942]); splitter.setStretchFactor(0,0); splitter.setStretchFactor(1,1); content.addWidget(splitter,1)
     utilities=QFrame(); utilities.setObjectName('utilityRail'); utilities.setFixedWidth(48); utility_layout=QVBoxLayout(utilities); utility_layout.setContentsMargins(8,8,8,0); utility_layout.setSpacing(16)
@@ -170,7 +171,7 @@ def build_shell(window):
     window.console_button=tool('console','Request console',window.show_console,text='Console');window.console_button.setCheckable(True);bottom.addWidget(window.console_button);bottom.addStretch()
     bottom.addWidget(tool('download','Export collection',window.export_collection,text='Export'))
     bottom.addWidget(tool('folder','Open local data folder',lambda:QDesktopServices.openUrl(QUrl.fromLocalFile(str(window.store.path.parent))),text='Local data'))
-    for button in footer.findChildren(QToolButton):button.setStyleSheet(stylesheet('font-size:11px;padding:0;'));button.setIconSize(QSize(13,13))
+    for button in footer.findChildren(QToolButton):set_style(button,stylesheet('font-size:11px;padding:0;'));button.setIconSize(QSize(13,13))
     outer.addWidget(footer)
     if USE_REQON_UI:
         from ui_environments import EnvironmentController

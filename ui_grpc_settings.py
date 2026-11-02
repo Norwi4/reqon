@@ -1,4 +1,5 @@
 """Native gRPC settings, laid out like the Postman request Settings tab."""
+from ui_theming import set_style,theme_qcolor
 from ui_brand import stylesheet
 from PySide6.QtCore import Qt, QRectF
 from PySide6.QtGui import QColor, QPainter, QPen, QIntValidator
@@ -16,13 +17,14 @@ class ToggleSwitch(QAbstractButton):
     def paintEvent(self,event):
         painter=QPainter(self); painter.setRenderHint(QPainter.RenderHint.Antialiasing)
         painter.setPen(Qt.PenStyle.NoPen)
-        painter.setBrush(QColor('#0983ef' if self.isChecked() else '#424242'))
+        painter.setBrush(theme_qcolor('#0983ef' if self.isChecked() else '#424242'))
         painter.drawRoundedRect(QRectF(0,4,32,16),8,8)
-        painter.setBrush(QColor('#ffffff')); painter.drawEllipse(QRectF(18 if self.isChecked() else 2,6,12,12))
-        painter.setPen(QColor('#e6e6e6' if self.isChecked() else '#a8a8a8'))
+        from ui_palettes import current_theme
+        painter.setBrush(QColor(current_theme().colors['action_text'] if self.isChecked() else '#ffffff')); painter.drawEllipse(QRectF(18 if self.isChecked() else 2,6,12,12))
+        painter.setPen(theme_qcolor('#e6e6e6' if self.isChecked() else '#a8a8a8'))
         painter.drawText(QRectF(37,0,31,24),Qt.AlignmentFlag.AlignVCenter,'ON' if self.isChecked() else 'OFF')
         if self.hasFocus():
-            painter.setPen(QPen(QColor('#8dbcf0'),1,Qt.PenStyle.DotLine)); painter.setBrush(Qt.BrushStyle.NoBrush)
+            painter.setPen(QPen(theme_qcolor('#8dbcf0'),1,Qt.PenStyle.DotLine)); painter.setBrush(Qt.BrushStyle.NoBrush)
             painter.drawRoundedRect(QRectF(0.5,0.5,66,23),3,3)
 
 
@@ -40,7 +42,7 @@ def settings_tab(page,data):
     scroll=QScrollArea(); scroll.setWidgetResizable(True); scroll.setFrameShape(QScrollArea.Shape.NoFrame)
     scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
     content=QWidget(); content.setObjectName('grpcSettings'); scroll.setWidget(content)
-    content.setStyleSheet(stylesheet('''
+    set_style(content,stylesheet('''
         QWidget#grpcSettings { background:#212121; }
         QLabel { font-size:12px; color:#ababab; }
         QLabel#settingTitle { font-weight:600; }

@@ -1,4 +1,5 @@
 """Compact selectors used by HTTP editor panels."""
+from ui_theming import set_style
 from PySide6.QtCore import QPoint,QRect,Qt
 from PySide6.QtWidgets import QMenu,QLineEdit
 from ui_components import Select,icon
@@ -9,7 +10,7 @@ class EditorSelect(Select):
     def __init__(self,items=(),value='',parent=None):
         super().__init__(parent);self.addItems(items);self.setCurrentText(value);self.setMinimumHeight(32)
         self.popup_menu=QMenu(self)
-        self.popup_menu.setStyleSheet('QMenu {background:#252525;border:1px solid #444;border-radius:4px;padding:7px;} QMenu::item {padding:7px 16px;min-height:16px;} QMenu::item:selected {background:#363636;border-radius:3px;}')
+        set_style(self.popup_menu,'QMenu {background:#252525;border:1px solid #444;border-radius:4px;padding:7px;} QMenu::item {padding:7px 16px;min-height:16px;} QMenu::item:selected {background:#363636;border-radius:3px;}')
         self.popup_menu.aboutToHide.connect(lambda:super(EditorSelect,self).hidePopup())
     def showPopup(self):
         menu=self.popup_menu;menu.clear();menu.setMinimumWidth(max(170,self.width()));current=None
@@ -29,7 +30,7 @@ class CheckSelect(QLineEdit):
     def __init__(self,choices,value='',separator=', ',placeholder='Select options'):
         super().__init__(value);self.choices=choices;self.separator=separator;self.setPlaceholderText(placeholder);self.setMinimumHeight(32)
         action=self.addAction(icon('chevron'),QLineEdit.ActionPosition.TrailingPosition);action.triggered.connect(self.show_choices)
-        self.menu=QMenu(self);self.menu.setStyleSheet('QMenu {background:#252525;border:1px solid #444;padding:6px;} QMenu::item {padding:6px 18px;} QMenu::item:selected {background:#363636;}')
+        self.menu=QMenu(self);set_style(self.menu,'QMenu {background:#252525;border:1px solid #444;padding:6px;} QMenu::item {padding:6px 18px;} QMenu::item:selected {background:#363636;}')
     def show_choices(self):
         self.menu.clear();selected=[part.strip() for part in self.text().split(self.separator.strip()) if part.strip()]
         for name in self.choices:

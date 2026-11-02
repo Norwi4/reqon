@@ -1,4 +1,5 @@
 """Native variable rows with a persistent blank tail and animated handle dragging."""
+from ui_theming import set_style,theme_qcolor
 from PySide6.QtCore import Qt,QEvent,QPoint,QPropertyAnimation,QEasingCurve,QTimer,Signal
 from PySide6.QtGui import QColor,QPainter,QPen,QCursor
 from PySide6.QtWidgets import QWidget,QLineEdit,QCheckBox,QScrollArea,QVBoxLayout,QLabel,QApplication
@@ -10,8 +11,8 @@ HEIGHT=33
 
 class EnabledCheck(QCheckBox):
     def paintEvent(self,event):
-        painter=QPainter(self);painter.setPen(QPen(QColor(C['focus'] if self.hasFocus() else C['subtle']),1))
-        painter.setBrush(QColor(C['selected'] if self.isChecked() else C['canvas']));painter.drawRect(1,3,13,13)
+        painter=QPainter(self);painter.setPen(QPen(theme_qcolor(C['focus'] if self.hasFocus() else C['subtle']),1))
+        painter.setBrush(theme_qcolor(C['selected'] if self.isChecked() else C['canvas']));painter.drawRect(1,3,13,13)
         if self.isChecked():icon('check',C['text'],12).paint(painter,2,4,12,12)
 
 
@@ -20,7 +21,7 @@ class DragHandle(QWidget):
         super().__init__(row);self.row=row;self.start=None;self.setCursor(Qt.CursorShape.OpenHandCursor)
         self.setToolTip('Drag to move variable');self.setAccessibleName('Move variable')
     def paintEvent(self,event):
-        painter=QPainter(self);painter.setPen(Qt.PenStyle.NoPen);painter.setBrush(QColor(C['muted']))
+        painter=QPainter(self);painter.setPen(Qt.PenStyle.NoPen);painter.setBrush(theme_qcolor(C['muted']))
         for x in (8,12):
             for y in (12,16,20):painter.drawEllipse(QPoint(x,y),1,1)
     def mousePressEvent(self,event):
@@ -44,7 +45,7 @@ class VariableRow(QWidget):
         for field,title in ((self.key,'Variable'),(self.value,'Value')):
             field.setObjectName('environmentCell');field.setAccessibleName(title);field.installEventFilter(self)
             field.textChanged.connect(self.edited)
-            field.setStyleSheet(f'QLineEdit {{border:0;border-radius:0;background:transparent;padding:0 8px;color:{C["text"]};}} QLineEdit:focus {{background:{C["hover"]};}}')
+            set_style(field,f'QLineEdit {{border:0;border-radius:0;background:transparent;padding:0 8px;color:{C["text"]};}} QLineEdit:focus {{background:{C["hover"]};}}')
         self.key.setPlaceholderText('Add variable' if placeholder else '')
         self.delete=tool('trash','Delete variable',lambda:canvas.remove_row(self),parent=self)
         self.delete.setAccessibleName('Delete variable');self.enabled.toggled.connect(self.edited)
@@ -71,8 +72,8 @@ class VariableRow(QWidget):
     def paintEvent(self,event):
         painter=QPainter(self)
         active=self.hovered or self.key.hasFocus() or self.value.hasFocus() or self.canvas.dragged is self
-        painter.fillRect(self.rect(),QColor(C['hover'] if active else C['canvas']))
-        painter.setPen(QPen(QColor(C['border']),1));middle=max(150,int(self.width()*.42))
+        painter.fillRect(self.rect(),theme_qcolor(C['hover'] if active else C['canvas']))
+        painter.setPen(QPen(theme_qcolor(C['border']),1));middle=max(150,int(self.width()*.42))
         painter.drawLine(20,0,20,self.height());painter.drawLine(middle,0,middle,self.height())
         painter.drawLine(20,self.height()-1,self.width(),self.height()-1);painter.drawLine(self.width()-1,0,self.width()-1,self.height())
 
@@ -142,7 +143,7 @@ class VariablesEditor(QWidget):
         super().__init__();layout=QVBoxLayout(self);layout.setContentsMargins(0,0,0,0);layout.setSpacing(0)
         self.header=QWidget();self.header.setFixedHeight(HEIGHT);self.header.installEventFilter(self)
         self.variable_label=QLabel('Variable',self.header);self.value_label=QLabel('Value',self.header)
-        for label in (self.variable_label,self.value_label):label.setStyleSheet(f'color:{C["muted"]};font-weight:600;')
+        for label in (self.variable_label,self.value_label):set_style(label,f'color:{C["muted"]};font-weight:600;')
         layout.addWidget(self.header)
         self.scroll=QScrollArea();self.scroll.setWidgetResizable(True);self.scroll.setFrameShape(QScrollArea.Shape.NoFrame)
         self.scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff);self.scroll.setAlignment(Qt.AlignmentFlag.AlignTop)
@@ -154,7 +155,7 @@ class VariablesEditor(QWidget):
             width=self.header.width();middle=max(150,int(width*.42))
             self.variable_label.setGeometry(48,0,middle-48,HEIGHT);self.value_label.setGeometry(middle+9,0,width-middle-10,HEIGHT)
         if obj is self.header and event.type()==QEvent.Type.Paint:
-            painter=QPainter(self.header);painter.fillRect(self.header.rect().adjusted(20,0,0,0),QColor(C['panel']))
-            painter.setPen(QColor(C['border']));painter.drawRect(self.header.rect().adjusted(20,0,-1,-1))
+            painter=QPainter(self.header);painter.fillRect(self.header.rect().adjusted(20,0,0,0),theme_qcolor(C['panel']))
+            painter.setPen(theme_qcolor(C['border']));painter.drawRect(self.header.rect().adjusted(20,0,-1,-1))
             middle=max(150,int(self.header.width()*.42));painter.drawLine(middle,0,middle,HEIGHT);return True
         return super().eventFilter(obj,event)

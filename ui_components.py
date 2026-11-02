@@ -1,8 +1,9 @@
 """Native Qt controls shared by the request editors and workspace shell."""
+from ui_theming import theme_qcolor
 import json
 import re
-from PySide6.QtCore import Qt, QSize, QRect, QByteArray, Signal
-from PySide6.QtGui import QColor, QIcon, QPixmap, QPainter, QFont, QSyntaxHighlighter, QTextCharFormat, QTextOption
+from PySide6.QtCore import Qt, QSize, QRect, QRectF, QByteArray, Signal
+from PySide6.QtGui import QColor, QIcon, QIconEngine, QPixmap, QPainter, QFont, QSyntaxHighlighter, QTextCharFormat, QTextOption
 from PySide6.QtSvg import QSvgRenderer
 from PySide6.QtWidgets import (QWidget, QPushButton, QToolButton, QPlainTextEdit, QVBoxLayout,
     QHBoxLayout, QLabel, QTableWidget, QTableWidgetItem, QHeaderView, QAbstractItemView,
@@ -16,6 +17,9 @@ PATHS = {
     'collapse': '<path d="m7 7 5-4 5 4M7 17l5 4 5-4M4 12h16"/>',
     'more': '<circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/>',
     'star': '<path d="m12 3 2.8 5.7 6.2.9-4.5 4.4 1.1 6.2L12 17.3l-5.6 2.9 1.1-6.2L3 9.6l6.2-.9Z"/>',
+    'palette': '<path d="M12 3a9 9 0 1 0 0 18h1a2 2 0 0 0 1.4-3.4 1.5 1.5 0 0 1 1.1-2.6H18a3 3 0 0 0 3-3 9 9 0 0 0-9-9Z"/><circle cx="7" cy="10" r="1"/><circle cx="10" cy="6.5" r="1"/><circle cx="15" cy="7" r="1"/><circle cx="17.5" cy="11" r="1"/>',
+    'sun': '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M5 5l1.5 1.5M17.5 17.5 19 19M5 19l1.5-1.5M17.5 6.5 19 5"/>',
+    'moon': '<path d="M20.5 14.5A9 9 0 0 1 9.5 3.5a9 9 0 1 0 11 11Z"/>',
     'trash': '<path d="M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7M14 10v7"/>',
     'example': '<path d="M6 3h9l4 4v14H6ZM15 3v5h4M9 12h7M9 16h7"/>',
     'rpc': '<path d="M7 21V3m-4 4 4-4 4 4M17 3v18m-4-4 4 4 4-4"/>',
@@ -54,12 +58,23 @@ PATHS = {
 }
 
 
-def icon(name, color='#a6a6a6', size=18):
-    svg = f'<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"><g fill="none" stroke="{color}" stroke-width="1.35" stroke-linecap="round" stroke-linejoin="round">{PATHS.get(name, PATHS["docs"])}</g></svg>'
-    pixmap = QPixmap(size * 2, size * 2); pixmap.fill(Qt.GlobalColor.transparent)
-    painter = QPainter(pixmap); QSvgRenderer(QByteArray(svg.encode())).render(painter); painter.end()
-    pixmap.setDevicePixelRatio(2)
-    return QIcon(pixmap)
+class ThemeIconEngine(QIconEngine):
+    """Render at paint time so existing actions and buttons follow the palette."""
+    def __init__(self,name,color):super().__init__();self.name=name;self.color=color
+    def clone(self):return ThemeIconEngine(self.name,self.color)
+    def isNull(self):return False
+    def paint(self,painter,rect,mode,state):
+        color=theme_qcolor(self.color).name()
+        svg=f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><g fill="none" stroke="{color}" stroke-width="1.35" stroke-linecap="round" stroke-linejoin="round">{PATHS.get(self.name,PATHS["docs"])}</g></svg>'
+        QSvgRenderer(QByteArray(svg.encode())).render(painter,QRectF(rect))
+    def pixmap(self,size,mode,state):
+        pixmap=QPixmap(size);pixmap.fill(Qt.GlobalColor.transparent)
+        painter=QPainter(pixmap);self.paint(painter,QRect(0,0,size.width(),size.height()),mode,state);painter.end();return pixmap
+    def scaledPixmap(self,size,mode,state,scale):
+        pixmap=self.pixmap(size*scale,mode,state);pixmap.setDevicePixelRatio(scale);return pixmap
+
+
+def icon(name,color='#a6a6a6',size=18):return QIcon(ThemeIconEngine(name,color))
 
 
 def tool(name, tooltip, callback=None, text='', parent=None):
@@ -79,16 +94,16 @@ class Select(QComboBox):
 class MethodButton(QToolButton):
     def paintEvent(self,event):
         painter=QPainter(self)
-        if self.underMouse():painter.fillRect(self.rect(),QColor('#292929'))
+        if self.underMouse():painter.fillRect(self.rect(),theme_qcolor('#292929'))
         self.icon().paint(painter,QRect(8,(self.height()-16)//2,16,16))
-        painter.setPen(QColor('#cccccc')); painter.setFont(self.font())
+        painter.setPen(theme_qcolor('#cccccc')); painter.setFont(self.font())
         text=self.fontMetrics().elidedText(self.text(),Qt.TextElideMode.ElideMiddle,self.width()-40)
         painter.drawText(self.rect().adjusted(30,0,-8,0),Qt.AlignmentFlag.AlignLeft|Qt.AlignmentFlag.AlignVCenter,text)
 
 
 class ProtocolButton(QToolButton):
     def paintEvent(self,event):
-        painter=QPainter(self); painter.fillRect(self.rect(),QColor('#383e47' if self.underMouse() else '#292d33'))
+        painter=QPainter(self); painter.fillRect(self.rect(),theme_qcolor('#383e47' if self.underMouse() else '#292d33'))
         self.icon().paint(painter,QRect(5,5,16,16)); icon('chevron',size=10).paint(painter,QRect(26,8,10,10))
 
 
@@ -101,15 +116,15 @@ class Syntax(QSyntaxHighlighter):
             elif value.startswith('"'): color = '#9cdcfe' if text[match.end():].lstrip().startswith(':') else '#ce9178'
             elif value in ('true','false','null'): color = '#569cd6'
             else: color = '#b5cea8'
-            fmt = QTextCharFormat(); fmt.setForeground(QColor(color)); self.setFormat(match.start(), len(value), fmt)
+            fmt = QTextCharFormat(); fmt.setForeground(theme_qcolor(color)); self.setFormat(match.start(), len(value), fmt)
         if USE_REQON_UI and text.lstrip().startswith('<'):
-            fmt=QTextCharFormat();fmt.setForeground(QColor(C['key']))
+            fmt=QTextCharFormat();fmt.setForeground(theme_qcolor(C['key']))
             for match in re.finditer(r'</?[\w:.-]+|/?>',text):self.setFormat(match.start(),len(match.group()),fmt)
         if USE_REQON_UI:
             from json_comments import comment_ranges
             spans,in_block=comment_ranges(text,self.previousBlockState()==1,allow_incomplete=True)
             self.setCurrentBlockState(1 if in_block else 0)
-            fmt=QTextCharFormat();fmt.setForeground(QColor(C['subtle']))
+            fmt=QTextCharFormat();fmt.setForeground(theme_qcolor(C['subtle']))
             for start,end in spans:
                 self.setFormat(len(text[:start].encode('utf-16-le'))//2,len(text[start:end].encode('utf-16-le'))//2,fmt)
 
@@ -152,7 +167,7 @@ class CodeEditor(QPlainTextEdit):
         if self.document().isEmpty() and self.placeholderText():
             # Qt's native placeholder is covered by the full-width current-line
             # selection. Paint the hint last; it never becomes document text.
-            painter=QPainter(self.viewport());painter.setFont(self.font());painter.setPen(QColor(C['subtle']))
+            painter=QPainter(self.viewport());painter.setFont(self.font());painter.setPen(theme_qcolor(C['subtle']))
             painter.drawText(int(self.document().documentMargin()),int(self.contentOffset().y())+self.fontMetrics().ascent(),self.placeholderText())
     def keyPressEvent(self,event):
         from ui_editor_behavior import editor_key
@@ -180,8 +195,8 @@ class CodeEditor(QPlainTextEdit):
         self.gutter.setGeometry(0,0,self.viewportMargins().left(),self.height())
         if USE_REQON_UI and hasattr(self,'presentation'):self.presentation.layout_banner()
     def paint_numbers(self,event):
-        painter = QPainter(self.gutter); painter.fillRect(event.rect(),QColor(getattr(self,'gutter_color','#212121')))
-        painter.setFont(self.font()); painter.setPen(QColor('#777777'))
+        painter = QPainter(self.gutter); painter.fillRect(event.rect(),theme_qcolor(getattr(self,'gutter_color','#212121')))
+        painter.setFont(self.font()); painter.setPen(theme_qcolor('#777777'))
         block = self.firstVisibleBlock(); number = block.blockNumber()
         top = int(self.blockBoundingGeometry(block).translated(self.contentOffset()).top())
         while block.isValid() and top <= event.rect().bottom():
@@ -222,20 +237,20 @@ class PlaceholderDelegate(QStyledItemDelegate):
         return editor
     def paint(self,painter,option,index):
         active=USE_REQON_UI and index.row()==self.parent().currentRow()
-        if active:option.backgroundBrush=QColor(C['line'])
+        if active:option.backgroundBrush=theme_qcolor(C['line'])
         if index.column()==0:
             painter.save()
-            painter.fillRect(option.rect,QColor(C['line'] if active else color('#212121')))
+            painter.fillRect(option.rect,theme_qcolor(C['line'] if active else color('#212121')))
             if index.data(Qt.ItemDataRole.CheckStateRole) is not None:
                 box=QRect(option.rect.center().x()-7,option.rect.center().y()-7,14,14)
                 checked=index.data(Qt.ItemDataRole.CheckStateRole)==Qt.CheckState.Checked.value
-                painter.setPen(QColor('#bfbfbf')); painter.setBrush(QColor('#f5f5f5') if checked else QColor('#212121'))
+                painter.setPen(theme_qcolor('#bfbfbf')); painter.setBrush(theme_qcolor('#f5f5f5') if checked else theme_qcolor('#212121'))
                 painter.drawRoundedRect(box,2,2)
                 if checked:icon('check','#333333',14).paint(painter,box)
             painter.restore();return
         super().paint(painter,option,index)
         if index.column()>0 and not index.data() and index.row()==index.model().rowCount()-1:
-            painter.save(); painter.setPen(QColor('#707070'))
+            painter.save(); painter.setPen(theme_qcolor('#707070'))
             painter.drawText(option.rect.adjusted(8,0,0,0),Qt.AlignmentFlag.AlignVCenter,['','Key','Value','Description'][index.column()]); painter.restore()
 
 

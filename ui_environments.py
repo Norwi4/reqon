@@ -1,4 +1,5 @@
 """Local Windows environment tabs, sidebar actions and selection colors."""
+from ui_theming import set_style,theme_qcolor
 import json
 from pathlib import Path
 from PySide6.QtCore import Qt,QSize,QPoint,QRect,QTimer,QObject,Signal
@@ -28,7 +29,7 @@ class EnvironmentCombo(Select):
 def color_icon(color,size=16):
     pixmap=QPixmap(size*2,size*2);pixmap.fill(Qt.GlobalColor.transparent);pixmap.setDevicePixelRatio(2)
     painter=QPainter(pixmap);painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-    painter.setPen(QPen(QColor(color or C['subtle']),1,Qt.PenStyle.SolidLine if color else Qt.PenStyle.DashLine))
+    painter.setPen(QPen(QColor(color) if color else theme_qcolor(C['subtle']),1,Qt.PenStyle.SolidLine if color else Qt.PenStyle.DashLine))
     painter.setBrush(QColor(color) if color else Qt.BrushStyle.NoBrush)
     if color:painter.drawRoundedRect(3,3,size-6,size-6,2,2)
     else:painter.drawEllipse(3,3,size-6,size-6)
@@ -40,9 +41,9 @@ class ApplyButton(QToolButton):
         super().__init__(parent);self.applied=False;self.setFixedSize(26,26);self.setAccessibleName('Apply environment')
     def paintEvent(self,event):
         p=QPainter(self);p.setRenderHint(QPainter.RenderHint.Antialiasing)
-        if self.underMouse():p.fillRect(self.rect(),QColor(C['hover']))
-        p.setPen(QPen(QColor(C['muted']),1.2));p.setBrush(QColor(C['muted']) if self.applied else Qt.BrushStyle.NoBrush)
-        p.drawEllipse(6,6,14,14);p.setPen(QPen(QColor(C['canvas'] if self.applied else C['muted']),1.4))
+        if self.underMouse():p.fillRect(self.rect(),theme_qcolor(C['hover']))
+        p.setPen(QPen(theme_qcolor(C['muted']),1.2));p.setBrush(theme_qcolor(C['muted']) if self.applied else Qt.BrushStyle.NoBrush)
+        p.drawEllipse(6,6,14,14);p.setPen(QPen(theme_qcolor(C['canvas'] if self.applied else C['muted']),1.4))
         p.drawLine(9,13,12,16);p.drawLine(12,16,17,10)
 
 
@@ -57,7 +58,7 @@ class ColorPopup(QDialog):
             button.setToolTip(value or 'No color');button.setAccessibleName(value or 'No color');button.setCheckable(True);button.setChecked(value==color)
             button.clicked.connect(lambda checked=False,value=value:self.choose(value));colors.addWidget(button)
         layout.addLayout(colors);custom=tool('plus','Custom color',self.custom);layout.addWidget(custom,0,Qt.AlignmentFlag.AlignLeft)
-        self.setStyleSheet(f'QDialog {{background:{C["panel"]};border:1px solid {C["border"]};border-radius:5px;}} QToolButton:checked {{border:1px solid {C["text"]};}}')
+        set_style(self,f'QDialog {{background:{C["panel"]};border:1px solid {C["border"]};border-radius:5px;}} QToolButton:checked {{border:1px solid {C["text"]};}}')
     def choose(self,color):self.selected.emit(color);self.close()
     def custom(self):
         self.hide();color=QColorDialog.getColor(parent=self.parentWidget(),title='Environment color')
@@ -69,17 +70,17 @@ class EnvironmentDelegate(QStyledItemDelegate):
     def paint(self,painter,option,index):
         owner=self.parent();id=index.data(ROLE);color=index.data(int(ROLE)+1);selected=bool(option.state&QStyle.StateFlag.State_Selected)
         hovered=owner.hover_id==id;painter.save()
-        if selected:painter.fillRect(option.rect,QColor(C['selected']))
-        elif hovered:painter.fillRect(option.rect,QColor(C['hover']))
+        if selected:painter.fillRect(option.rect,theme_qcolor(C['selected']))
+        elif hovered:painter.fillRect(option.rect,theme_qcolor(C['hover']))
         if color or hovered:color_icon(color).paint(painter,QRect(option.rect.left()+14,option.rect.center().y()-8,16,16))
-        font=option.font;font.setWeight(font.Weight.Medium if selected else font.Weight.Normal);painter.setFont(font);painter.setPen(QColor(C['text']))
+        font=option.font;font.setWeight(font.Weight.Medium if selected else font.Weight.Normal);painter.setFont(font);painter.setPen(theme_qcolor(C['text']))
         reserve=65 if hovered else 38 if id==owner.controller.window.env_combo.currentData() else 10
         rect=option.rect.adjusted(36,0,-reserve,0);text=painter.fontMetrics().elidedText(index.data(),Qt.TextElideMode.ElideRight,max(0,rect.width()))
         painter.drawText(rect,Qt.AlignmentFlag.AlignVCenter,text)
         if id==owner.controller.window.env_combo.currentData() and not hovered:
             x=option.rect.right()-34;y=option.rect.center().y()-7
-            painter.setRenderHint(QPainter.RenderHint.Antialiasing);painter.setPen(Qt.PenStyle.NoPen);painter.setBrush(QColor(C['muted']))
-            painter.drawEllipse(x,y,14,14);painter.setPen(QPen(QColor(C['canvas']),1.4))
+            painter.setRenderHint(QPainter.RenderHint.Antialiasing);painter.setPen(Qt.PenStyle.NoPen);painter.setBrush(theme_qcolor(C['muted']))
+            painter.drawEllipse(x,y,14,14);painter.setPen(QPen(theme_qcolor(C['canvas']),1.4))
             painter.drawLine(x+3,y+7,x+6,y+10);painter.drawLine(x+6,y+10,x+11,y+4)
         painter.restore()
     def sizeHint(self,option,index):return QSize(100,30)
@@ -89,7 +90,7 @@ class EnvironmentList(QListWidget):
     def __init__(self,controller):
         super().__init__();self.controller=controller;self.hover_id=None;self.setObjectName('environmentList');self.setMouseTracking(True)
         self.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff);self.setItemDelegate(EnvironmentDelegate(self))
-        self.setStyleSheet(f'QListWidget {{border:0;background:transparent;outline:none;}}')
+        set_style(self,f'QListWidget {{border:0;background:transparent;outline:none;}}')
         self.color=tool('environment','Set environment color',self.choose_color,parent=self.viewport());self.color.setFixedSize(26,26)
         self.apply=ApplyButton(self.viewport());self.apply.clicked.connect(self.toggle_apply)
         self.more=tool('more','More actions',self.show_menu,parent=self.viewport());self.more.setFixedSize(26,26)
@@ -144,7 +145,7 @@ class EnvironmentSidebar(QWidget):
         self.search.setPlaceholderText('Search environments');self.search.setFixedHeight(26);self.search.addAction(icon('search',size=14),QLineEdit.ActionPosition.LeadingPosition)
         bar.addWidget(self.search,1);layout.addLayout(bar)
         self.globals=QPushButton('Globals');self.globals.setFixedHeight(48);self.globals.clicked.connect(lambda:controller.open(None))
-        self.globals.setStyleSheet(f'text-align:left;padding-left:36px;border:0;border-bottom:1px solid {C["border"]};border-radius:0;background:transparent;')
+        set_style(self.globals,f'text-align:left;padding-left:36px;border:0;border-bottom:1px solid {C["border"]};border-radius:0;background:transparent;')
         layout.addWidget(self.globals);layout.addSpacing(8);self.list=EnvironmentList(controller);layout.addWidget(self.list,1)
         self.search.textChanged.connect(self.filter)
     def filter(self,text):
@@ -225,8 +226,9 @@ class EnvironmentController(QObject):
         if selected!=combo.currentData():combo.currentIndexChanged.emit(combo.currentIndex())
     def selection_changed(self,*_):
         combo=self.window.env_combo;id=combo.currentData();color=self.data.get(id)['color'] if id is not None else ''
-        background=QColor(color).darker(145).name() if color else C['canvas']
-        combo.setStyleSheet(f'QComboBox {{border:1px solid {color or "transparent"};border-radius:4px;background:{background};color:{C["text"]};font-size:12px;padding:5px 20px 5px 8px;}}')
+        from ui_palettes import current_theme,mix
+        background=(QColor(color).darker(145).name() if current_theme().dark else mix(current_theme().colors['canvas'],color,.12)) if color else C['canvas']
+        set_style(combo,f'QComboBox {{border:1px solid {color or "transparent"};border-radius:4px;background:{background};color:{C["text"]};font-size:12px;padding:5px 20px 5px 8px;}}',literals=(color,background) if color else ())
         combo.setToolTip(combo.currentText());self.sidebar.list.clear_hover();self.sidebar.list.viewport().update()
     def apply(self,id):
         self.window.env_combo.setCurrentIndex(max(0,self.window.env_combo.findData(id)));self.window.save_workspace()

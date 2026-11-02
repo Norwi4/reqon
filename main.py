@@ -184,6 +184,8 @@ class MainWindow(GeneralController, Autosave, CollectionActions, QMainWindow):
         from proxy_support import ProxyPreferences
         self.proxy_preferences=ProxyPreferences(self.store)
         self.init_general_settings()
+        from ui_theming import ThemeController
+        self.theme_controller=ThemeController(self)
         self.workers = []
         self.console_entries = []
         self.init_autosave()

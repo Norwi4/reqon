@@ -1,4 +1,5 @@
 """Non-destructive inline JSON feedback for the existing native text editor."""
+from ui_theming import theme_qcolor
 import json
 from json_comments import loads,looks_like_json,format_json
 from PySide6.QtCore import QObject,QTimer,Qt
@@ -36,13 +37,13 @@ class EditorPresentation(QObject):
         editor=self.editor;selections=[]
         if not editor.isReadOnly():
             line=QTextEdit.ExtraSelection();line.cursor=editor.textCursor();line.cursor.clearSelection()
-            line.format.setBackground(QColor(C['line']));line.format.setProperty(QTextFormat.Property.FullWidthSelection,True);selections.append(line)
+            line.format.setBackground(theme_qcolor(C['line']));line.format.setProperty(QTextFormat.Property.FullWidthSelection,True);selections.append(line)
         if self.error:
             mark=QTextEdit.ExtraSelection();mark.cursor=QTextCursor(editor.document())
             position=len(editor.toPlainText()[:self.error.pos].encode('utf-16-le'))//2
             mark.cursor.setPosition(max(0,min(position,editor.document().characterCount()-2)))
             mark.cursor.movePosition(QTextCursor.MoveOperation.Right,QTextCursor.MoveMode.KeepAnchor)
-            mark.format.setUnderlineStyle(QTextCharFormat.UnderlineStyle.WaveUnderline);mark.format.setUnderlineColor(QColor(C['error']));selections.append(mark)
+            mark.format.setUnderlineStyle(QTextCharFormat.UnderlineStyle.WaveUnderline);mark.format.setUnderlineColor(theme_qcolor(C['error']));selections.append(mark)
         editor.setExtraSelections(selections)
     def format_json(self):
         self.timer.stop()
