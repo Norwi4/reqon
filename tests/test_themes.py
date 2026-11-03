@@ -31,6 +31,10 @@ class ThemeTests(unittest.TestCase):
 
     def test_preferences_survive_reopen_and_reject_invalid_values(self):
         self.assertEqual(ThemePreferences(self.store).config,ThemeConfig())
+        preferences=ThemePreferences(self.store);preferences.save(ThemeConfig())
+        self.assertEqual(json.loads(self.store.all("SELECT data FROM workspace_state WHERE key='theme'")[0][0])['manual'],'dark')
+        changes=self.store.db.total_changes;preferences.save(ThemeConfig())
+        self.assertEqual(self.store.db.total_changes,changes)
         config=ThemeConfig('system','dracula','ayu-light','solarized-dark');self.window.theme_controller.set_config(config)
         self.window.general_preferences.save(replace(self.window.general_preferences.config,font_size=16))
         self.assertEqual(ThemePreferences(self.store).config,config)
@@ -106,6 +110,23 @@ class ThemeTests(unittest.TestCase):
             self.assertIn(current_theme().colors['canvas'],page.method.popup_menu.styleSheet())
         self.theme(manual='light');page.method.showPopup();self.app.processEvents()
         self.assertIn('#ffffff',page.method.popup_menu.styleSheet());self.assertNotIn('#1f1f1f',page.method.popup_menu.styleSheet());page.method.hidePopup()
+
+    def test_hidden_tabs_and_settings_receive_latest_theme_before_showing(self):
+        first=self.window.current_page();first.message.insertPlainText('{"draft":true}')
+        before=first.collect();spy=QSignalSpy(first.message.textChanged)
+        second=self.window.new_grpc_request()
+        self.assertFalse(first.isVisible())
+        for theme_id in ('light','dracula','high-contrast-light','dark'):
+            self.theme(manual=theme_id)
+            self.window.workbench.setCurrentWidget(first);first.tabs.setCurrentIndex(1);self.app.processEvents()
+            self.assertEqual(first.message.palette().color(QPalette.ColorRole.Base).name(),current_theme().colors['canvas'])
+            self.assertEqual(first.message.palette().color(QPalette.ColorRole.Text).name(),current_theme().colors['text'])
+            first.tabs.setCurrentIndex(first.tabs.count()-1);self.app.processEvents()
+            self.assertEqual(first.tls_server_name.palette().color(QPalette.ColorRole.Base).name(),current_theme().colors['canvas'])
+            self.assertEqual(first.collect(),before)
+            self.window.workbench.setCurrentWidget(second);self.app.processEvents()
+        self.assertEqual(spy.count(),0)
+        self.assertTrue(first.message.document().isUndoAvailable())
 
 
 if __name__=='__main__':unittest.main()

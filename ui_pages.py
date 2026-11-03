@@ -59,6 +59,7 @@ class DialogCallbacks(QObject):
 
 
 class ResponsePanel(QWidget):
+    PAGE_CHARS=128*1024
     def __init__(self,grpc=False):
         super().__init__(); self.grpc=grpc
         layout=QVBoxLayout(self); layout.setContentsMargins(0,0,0,0); layout.setSpacing(0)
@@ -78,11 +79,19 @@ class ResponsePanel(QWidget):
         self.editor=CodeEditor(readonly=True)
         self.editor.setPlaceholderText('Click Invoke to get a response' if grpc else 'Click Send to get a response')
         controls.addWidget(self.editor.wrap_control())
+        self.pager=QWidget();pager_row=row(self.pager,(0,0,0,0),4)
+        self.previous_page=tool('back','Previous part');self.next_page=tool('forward','Next part');self.page_label=QLabel()
+        self.previous_page.setFixedWidth(24);self.next_page.setFixedWidth(24)
+        self.previous_page.setToolTip('Previous part');self.next_page.setToolTip('Next part')
+        self.pager.setToolTip('Large response shown in parts. Copy and Save include the full response. Search covers all parts.')
+        for widget in (self.previous_page,self.page_label,self.next_page):pager_row.addWidget(widget)
+        self.previous_page.clicked.connect(lambda:self.show_part(self._part-1));self.next_page.clicked.connect(lambda:self.show_part(self._part+1))
+        self.pager.hide();controls.addWidget(self.pager)
         controls.addStretch()
         self.search=QLineEdit(); self.search.setPlaceholderText('Find in response'); self.search.setFixedWidth(190); self.search.hide()
         self.search.returnPressed.connect(self.find_next); controls.addWidget(self.search)
         controls.addWidget(tool('search','Find in response',self.toggle_search))
-        controls.addWidget(tool('copy','Copy response',lambda: QApplication.clipboard().setText(self.editor.toPlainText())))
+        controls.addWidget(tool('copy','Copy full response',self.copy_response))
         controls.addWidget(tool('download','Save response',self.save_response))
         body_layout.addWidget(toolbar); body_layout.addWidget(self.editor,1)
         self.body_stack=QStackedWidget();self.body_stack.addWidget(body)
@@ -97,7 +106,7 @@ class ResponsePanel(QWidget):
             self.http_error=ErrorPanel();self.http_error_index=self.tabs.addTab(self.http_error,'Status')
             self.tabs.setTabVisible(self.http_error_index,False)
         layout.addWidget(self.tabs)
-        self._copy_text=''
+        self._copy_text='';self._response_text='';self._part=0;self._search_offset=0;self._search_query=''
     def copy_response(self):QApplication.clipboard().setText(self._copy_text)
     def set_pending(self):
         self.status.setText('Sending…');self.metrics.clear();self.copy_button.hide()
@@ -109,12 +118,34 @@ class ResponsePanel(QWidget):
     def toggle_search(self):
         self.search.setVisible(not self.search.isVisible()); self.search.setFocus()
     def find_next(self):
-        if not self.editor.find(self.search.text()):
-            cursor=self.editor.textCursor(); cursor.movePosition(cursor.MoveOperation.Start); self.editor.setTextCursor(cursor)
-            self.editor.find(self.search.text())
+        query=self.search.text()
+        if not query:return
+        if query!=self._search_query:self._search_offset=0;self._search_query=query
+        pattern=re.compile(re.escape(query),re.IGNORECASE)
+        match=pattern.search(self._response_text,self._search_offset) or pattern.search(self._response_text)
+        if not match:return
+        self._search_offset=match.end();part=match.start()//self.PAGE_CHARS
+        self.show_part(part)
+        start=part*self.PAGE_CHARS;visible=self._response_text[start:start+self.PAGE_CHARS]
+        cursor=self.editor.textCursor()
+        cursor.setPosition(len(visible[:match.start()-start].encode('utf-16-le'))//2)
+        cursor.setPosition(len(visible[:match.end()-start].encode('utf-16-le'))//2,cursor.MoveMode.KeepAnchor)
+        self.editor.setTextCursor(cursor);self.editor.ensureCursorVisible()
+    def show_part(self,part):
+        count=max(1,(len(self._response_text)+self.PAGE_CHARS-1)//self.PAGE_CHARS)
+        self._part=max(0,min(count-1,part));start=self._part*self.PAGE_CHARS
+        text=self._response_text[start:start+self.PAGE_CHARS]
+        # Syntax colouring is optional; full data and navigation are not.
+        self.editor.highlighter.setDocument(None)
+        self.editor.setPlainText(text)
+        if len(text)<=32*1024:self.editor.highlighter.setDocument(self.editor.document())
+        self.pager.setVisible(count>1);self.page_label.setText(f'Part {self._part+1} / {count}')
+        self.previous_page.setEnabled(self._part>0);self.next_page.setEnabled(self._part+1<count)
+    def set_response_text(self,text):
+        self._response_text=text;self._search_offset=0;self._search_query='';self.show_part(0)
     def save_response(self):
         path,_=QFileDialog.getSaveFileName(self,'Save response','response.json','JSON (*.json);;Text (*.txt);;All files (*)')
-        if path: Path(path).write_text(self.editor.toPlainText(),encoding='utf-8')
+        if path: Path(path).write_text(self._response_text,encoding='utf-8')
     def show_response(self,result):
         if USE_REQON_UI:
             if 'error' in result:result=decorate_failure(dict(result))
@@ -135,7 +166,7 @@ class ResponsePanel(QWidget):
             self.status.setText(info['badge']);self.status.set_tone(info.get('tone','error'))
             self.metrics.setText(elapsed);self.metrics.setToolTip(elapsed)
             if USE_REQON_UI:self.metrics.setText(response_metrics(result));self.metrics.setToolTip(self.metrics.text())
-            self.editor.setPlainText(result['error']);self.error_panel.set_error(info)
+            self.set_response_text(result['error']);self.error_panel.set_error(info)
             self.body_stack.setCurrentIndex(1);self.tabs.setCurrentIndex(0)
             self._copy_text=info['badge']+'\n'+info['title']+'\n\n'+info.get('details',result['error']);self.copy_button.setToolTip('Copy error details')
             self.fit_status();return
@@ -144,18 +175,11 @@ class ResponsePanel(QWidget):
         tone='success' if self.grpc or 200<=result['status']<300 else 'error' if result['status']>=400 else 'warning'
         self.status.set_tone(tone)
         self.metrics.setText(response_metrics(result) if USE_REQON_UI else f"{elapsed}  ·  {result['size']:,} B");self.metrics.setToolTip(self.metrics.text())
-        text=result['body']
         from general_settings import GeneralConfig
-        config=getattr(self,'format_config',GeneralConfig());media_type=next((str(v).lower() for k,v in entries if str(k).lower()=='content-type'),'')
-        if self.grpc or config.response_format=='JSON' or 'json' in media_type:
-            try:text=json.dumps(json.loads(text),ensure_ascii=False,indent=config.indent)
-            except (ValueError,TypeError):pass
-        elif 'xml' in media_type:
-            try:
-                from xml.dom.minidom import parseString
-                text=parseString(text).toprettyxml(indent=config.indent)
-            except Exception:pass
-        self.editor.setPlainText(text)
+        from response_format import signature,format_body
+        config=getattr(self,'format_config',GeneralConfig())
+        text=result['display_body'] if result.get('display_format')==signature(self.grpc,config) else format_body(result,self.grpc,config)
+        self.set_response_text(text)
         self._copy_text=text;self.copy_button.setToolTip('Copy response');self.fit_status()
         if USE_REQON_UI:
             if not self.grpc and result['status']>=400:
@@ -210,7 +234,8 @@ class BasePage(QWidget):
         self.send_button.setText('Cancel' if busy else 'Invoke' if self.kind=='grpc' else 'Send')
         if busy:self.response.set_pending()
     def show_response(self,result):
-        self.last_response=result; self.set_busy(False); self.response.show_response(result)
+        self.last_response={key:value for key,value in result.items() if key not in ('display_body','display_format')}
+        self.set_busy(False); self.response.show_response(result)
     def divider(self):
         line=QFrame(); line.setObjectName('divider'); line.setFixedSize(1,24); self.address_layout.addWidget(line)
     def add_editor(self,editor):
@@ -440,6 +465,9 @@ class GrpcPage(BasePage):
         if self.method_picker._expanded:self._reload_timer.start()
 
     def start_discovery(self,force=False):
+        if force:
+            from native_request import invalidate_connections
+            invalidate_connections()
         self._reload_timer.stop()
         if self._importing:
             self.method_picker.set_loading('local'); return

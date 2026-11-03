@@ -1,0 +1,55 @@
+[package]
+name = "reqon-runner-prototype"
+version = "0.14.1"
+edition = "2024"
+publish = false
+
+[lib]
+name = "reqon_runner"
+
+[[bin]]
+name = "reqon-prototype"
+path = "src/main.rs"
+
+[dependencies]
+anyhow = "1"
+bytes = "1"
+base64 = "0.23"
+csv = "1"
+clap = { version = "4", features = ["derive"] }
+http = "1"
+http-body-util = "0.1"
+hyper = { version = "1", features = ["client", "http1", "http2"] }
+hyper-util = { version = "0.1", features = ["tokio"] }
+jsonschema = { version = "0.60", default-features = false }
+prost = "0.14"
+prost-types = "0.14"
+prost-reflect = { version = "0.16", features = ["serde"] }
+protox = "0.10"
+reqwest = { version = "0.13", default-features = false, features = ["rustls-no-provider", "json", "query", "form", "multipart", "stream", "gzip", "brotli", "deflate", "http2", "cookies", "charset"] }
+rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"] }
+rquickjs = "0.14"
+rskafka = { version = "0.6", default-features = false, features = ["compression-gzip", "compression-snappy", "compression-lz4", "transport-tls"] }
+rustls-native-certs = "0.8"
+serde_yaml_ng = "0.10"
+schemars = "1"
+semver = "1"
+sha2 = "0.10"
+same-file = "1"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+serde_path_to_error = "0.1"
+tempfile = "3"
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "time", "process", "io-util", "signal", "fs", "net", "sync"] }
+tokio-stream = "0.1"
+tokio-util = "0.7"
+tonic = { version = "0.14", features = ["transport", "tls-ring", "tls-native-roots"] }
+tonic-reflection = "0.14"
+tower = { version = "0.5", features = ["util"] }
+url = "2"
+uuid = { version = "1", features = ["v4"] }
+
+[profile.release]
+strip = true
+lto = "thin"
+codegen-units = 1

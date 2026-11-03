@@ -1,0 +1,25 @@
+# Include after publishing your reviewed image to the private registry.
+# REQON_IMAGE must be registry/path/reqon@sha256:<immutable registry digest>.
+# The pipeline uses only cases already approved and merged into its checkout.
+reqon-regression:
+  stage: test
+  image:
+    name: $REQON_IMAGE
+    entrypoint: [""]
+  allow_failure: true
+  timeout: 20m
+  variables:
+    REQON_CATALOG: regression/catalog.json
+    REQON_ENV: environments/ci.json
+  script:
+    - 'case "$REQON_IMAGE" in *@sha256:*) ;; *) echo "REQON_IMAGE must use a registry digest"; exit 2;; esac'
+    - 'test "$(reqon --version)" = "reqon-runner-prototype 0.14.1"'
+    - reqon validate "$REQON_CATALOG" --env "$REQON_ENV" --json
+    - reqon run "$REQON_CATALOG" --env "$REQON_ENV" --tag smoke --json artifacts/result.json --junit artifacts/junit.xml --html artifacts/report.html
+  artifacts:
+    when: always
+    expire_in: 14 days
+    paths:
+      - artifacts/
+    reports:
+      junit: artifacts/junit.xml

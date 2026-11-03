@@ -36,7 +36,9 @@ def main():
     with tarfile.open(fileobj=io.BytesIO(base['data.tar.xz'])) as source:
         executable = source.extractfile('./opt/getman/Getman').read()
     updated = refresh.refresh_executable(executable, args.python311, verify=False, python_overlay=qt_python)
+    runner = refresh.runner_payload()
     replacements = {
+        'Reqon/_internal/runner/reqon': (runner, 0o755),
         'Reqon/Reqon': (updated, 0o755),
         'Reqon/reqon': (LAUNCHER, 0o755),
         'Reqon/README.txt': ((ROOT / 'packaging/portable-linux-readme.txt').read_bytes(), 0o644),

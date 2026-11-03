@@ -2,14 +2,16 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 root="$(pwd -P)"
-version="${1:-0.15.0}"
+version="${1:-0.19.0}"
 [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo 'Expected a numeric x.y.z version' >&2; exit 1; }
 [[ "$(uname -s)" == Linux && "$(dpkg --print-architecture)" == amd64 ]] || { echo 'Build on Linux amd64' >&2; exit 1; }
 python_bin="${PYTHON:-python3}"
 if [[ ! -x build/linux/venv/bin/python ]]; then "$python_bin" -m venv build/linux/venv; fi
 python_bin="$root/build/linux/venv/bin/python"
 "$python_bin" -m pip install -r requirements.txt
+test "$(prototypes/rust-runner/dist/reqon --version)" = "reqon-runner-prototype $("$python_bin" -c 'from runner_controller import RUNNER_VERSION; print(RUNNER_VERSION)')"
 "$python_bin" -m PyInstaller --noconfirm --clean --windowed --collect-data grpc_tools \
+    --add-binary "$root/prototypes/rust-runner/dist/reqon:runner" \
     --add-data "$root/assets/fonts:assets/fonts" \
     --copy-metadata PySocks --copy-metadata httpcore --copy-metadata jsonschema \
     --collect-data jsonschema_specifications \

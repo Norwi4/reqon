@@ -1,4 +1,9 @@
 ARG ASTRA_IMAGE=registry.astralinux.ru/library/astra/ubi18:1.8
+FROM rust:1.99.1-bookworm@sha256:9181b56c2a21ab1d5e73cffe04fc762426d30aa7fac3c91141dd033f49a7fc8b AS runner
+WORKDIR /runner
+COPY prototypes/rust-runner/Cargo.toml prototypes/rust-runner/Cargo.lock ./
+COPY prototypes/rust-runner/src ./src
+RUN cargo build --release --locked
 FROM ${ASTRA_IMAGE}
 ENV DEBIAN_FRONTEND=noninteractive LANG=C.UTF-8
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -13,5 +18,6 @@ WORKDIR /src
 COPY requirements.txt .
 RUN python3 -m venv /opt/reqon-build-env && /opt/reqon-build-env/bin/pip install -r requirements.txt
 COPY . .
+COPY --from=runner /runner/target/release/reqon-prototype /src/prototypes/rust-runner/dist/reqon
 RUN mkdir -p build/linux && ln -s /opt/reqon-build-env build/linux/venv
 CMD ["bash", "packaging/verify-astra-build.sh"]

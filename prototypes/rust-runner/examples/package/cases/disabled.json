@@ -1,0 +1,13 @@
+{
+  "schema_version": "reqon-case/v1",
+  "id": "CASE-003",
+  "name": "Disabled example",
+  "disabled": true,
+  "steps": [
+    {
+      "type": "javascript",
+      "id": "never",
+      "script": "assert(false, 'disabled case executed'); return {};"
+    }
+  ]
+}

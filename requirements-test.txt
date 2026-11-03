@@ -1,1 +1,2 @@
 cryptography>=43,<50
+psutil>=7,<8

@@ -1,0 +1,9 @@
+{
+  "schema_version": "reqon-environment/v1",
+  "id": "local-java-demo",
+  "endpoint": "http://127.0.0.1:50051",
+  "regression": {
+    "use_default_endpoint": true,
+    "call_timeout_ms": 2000
+  }
+}

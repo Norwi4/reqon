@@ -1,0 +1,33 @@
+{
+  "$id": "urn:reqon:suite:v1",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Reqon JSON package v1. Run validate for IDs, references, paths, engine capabilities and other semantic checks. YAML/legacy Java execution is not supported by this schema.",
+  "properties": {
+    "cases": {
+      "description": "Explicit case IDs in execution order; not paths or recursive suite references.",
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "id": {
+      "type": "string"
+    },
+    "name": {
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "reqon-suite/v1",
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema_version",
+    "id",
+    "name",
+    "cases"
+  ],
+  "title": "Suite",
+  "type": "object"
+}

@@ -77,6 +77,22 @@ class CollectionStore:
         items += [('request', *r) for r in self.all('SELECT id,name,sort_order FROM requests WHERE collection_id=? AND folder_id IS ?', (cid, fid))]
         return sorted(items, key=lambda r: (r[3], r[0], r[1]))
 
+    def tree_snapshot(self):
+        """Read tree metadata in four queries, without loading request/response bodies."""
+        selections = {
+            'collection': 'id,name,kind,sort_order,starred,expanded',
+            'folder': 'id,name,collection_id,parent_id,sort_order,expanded',
+            'request': "id,name,collection_id,folder_id,sort_order,expanded,"
+                       "json_extract(data,'$.kind') AS protocol,json_extract(data,'$.method') AS method",
+            'example': 'id,name,request_id,sort_order',
+        }
+        result = {}
+        for kind, columns in selections.items():
+            cursor = self.db.execute(f'SELECT {columns} FROM {TABLES[kind]} ORDER BY sort_order,id')
+            names = [column[0] for column in cursor.description]
+            result[kind] = [dict(zip(names, row)) for row in cursor]
+        return result
+
     def insertion_values(self, table, values):
         values = dict(values)
         if table in TABLES.values():
@@ -145,7 +161,7 @@ class CollectionStore:
             else: self.db.execute(f'DELETE FROM {TABLES[kind]} WHERE id=?', (id,))
 
     def reconcile_kind(self, cid):
-        kinds = {json.loads(r[0]).get('kind', 'http') for r in self.all('SELECT data FROM requests WHERE collection_id=?', (cid,))}
+        kinds = {r[0] for r in self.all("SELECT DISTINCT COALESCE(json_extract(data,'$.kind'),'http') FROM requests WHERE collection_id=?", (cid,))}
         if kinds: self.db.execute('UPDATE collections SET kind=? WHERE id=?', ('mixed' if len(kinds) > 1 else next(iter(kinds)), cid))
 
     def move_entity(self, kind, id, cid=None, fid=None, before=None):

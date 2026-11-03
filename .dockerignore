@@ -4,6 +4,9 @@ dist
 .git
 __pycache__
 **/__pycache__
+**/target
+**/artifacts
+**/node_modules
 *.spec
 scrinshot
 docs/ui

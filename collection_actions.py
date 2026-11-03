@@ -30,6 +30,7 @@ class CollectionActions:
         for i in range(self.tree.topLevelItemCount()): yield from branch(self.tree.topLevelItem(i))
 
     def tree_item(self, kind, id):
+        if hasattr(self,'_tree_index'):return self._tree_index.get((kind,id))
         return next((item for item in self.tree_items() if item.data(0, ROLE)[:2] == (kind, id)), None)
 
     def select_tree_item(self, kind, id):
@@ -40,48 +41,101 @@ class CollectionActions:
         self.tree.setCurrentItem(item); self.tree.scrollToItem(item)
 
     def refresh_tree(self):
-        counts=dict(self.store.all('SELECT collection_id,COUNT(*) FROM requests GROUP BY collection_id')) if USE_REQON_UI else {}
-        current = self.tree.currentItem(); selected = current.data(0, ROLE)[:2] if current else None
-        self.tree.blockSignals(True); self.tree.clear()
-        def node(kind, id, name, parent):
-            row = self.store.entity(kind, id)
-            item = QTreeWidgetItem(parent, [name])
-            value = (kind, id, row['kind']) if kind == 'collection' else (kind, id, row['collection_id']) if kind == 'folder' else (kind, id)
-            item.setData(0, ROLE, value)
+        from collections import defaultdict
+        from ui_typography import ui_font
+        snapshot=self.store.tree_snapshot()
+        if self.update_tree_values(snapshot):return
+        children=defaultdict(list);counts=defaultdict(int)
+        for kind,rows in snapshot.items():
+            for row in rows:
+                if kind=='collection':parent=('root',None)
+                elif kind=='example':parent=('request',row['request_id'])
+                else:
+                    folder=row['parent_id' if kind=='folder' else 'folder_id']
+                    parent=('folder',folder) if folder is not None else ('collection',row['collection_id'])
+                    if kind=='request':counts[row['collection_id']]+=1
+                children[parent].append((kind,row))
+        for rows in children.values():rows.sort(key=lambda value:(value[1]['sort_order'],value[0],value[1]['id']))
+        current=self.tree.currentItem();selected=current.data(0,ROLE)[:2] if current else None
+        scroll=self.tree.verticalScrollBar().value()
+        font=ui_font(12) if USE_REQON_UI else QFont('Segoe UI');font.setPixelSize(12)
+        font.setWeight(QFont.Weight.Normal if USE_REQON_UI else QFont.Weight.DemiBold)
+        index={};expanded={};icons={}
+        def tree_icon(name,color='#a6a6a6'):
+            key=(name,color)
+            if key not in icons:icons[key]=icon(name,color)
+            return icons[key]
+        def node(kind,row):
+            id=row['id'];name=row['name'];item=QTreeWidgetItem([name]);key=(kind,id)
+            index[key]=item;expanded[key]=bool(row.get('expanded',False))
+            value=(kind,id,row['kind']) if kind=='collection' else (kind,id,row['collection_id']) if kind=='folder' else key
+            item.setData(0,ROLE,value)
             item.setFlags(item.flags() | Qt.ItemFlag.ItemIsEditable | Qt.ItemFlag.ItemIsDragEnabled)
-            if kind in ('request', 'example'): item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsDropEnabled)
-            item.setToolTip(0, name)
-            from ui_typography import ui_font
-            font = ui_font(12) if USE_REQON_UI else QFont('Segoe UI'); font.setPixelSize(12)
-            font.setWeight(QFont.Weight.Normal if USE_REQON_UI else QFont.Weight.DemiBold);item.setFont(0,font)
-            if kind == 'collection':
-                item.setData(0, STAR, row['starred'])
-                if USE_REQON_UI:item.setData(0,COUNT,counts.get(id,0))
-            elif kind == 'folder': item.setIcon(0, icon('folder'))
-            elif kind == 'example': item.setIcon(0, icon('example', '#a6a6a6'))
+            if kind in ('request','example'):item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsDropEnabled)
+            item.setToolTip(0,name);item.setFont(0,font)
+            if kind=='collection':
+                item.setData(0,STAR,row['starred'])
+                if USE_REQON_UI:item.setData(0,COUNT,counts[id])
+            elif kind=='folder':item.setIcon(0,tree_icon('folder'))
+            elif kind=='example':item.setIcon(0,tree_icon('example'))
             else:
-                data = json.loads(row['data']); protocol = data.get('kind', 'http'); item.setData(0, PROTOCOL, protocol)
-                item.setIcon(0, icon(protocol, PROTOCOL_COLORS[protocol]))
-                if USE_REQON_UI:item.setData(0,METHOD,'gRPC' if protocol=='grpc' else data.get('method','GET'))
-            if kind in ('collection', 'folder'):
-                for typ, child, title, _ in self.store.children(id if kind == 'collection' else row['collection_id'], None if kind == 'collection' else id):
-                    node(typ, child, title, item)
-            elif kind == 'request':
-                for typ, child, title, _ in self.store.children(request_id=id): node(typ, child, title, item)
-            item.setExpanded(bool(row.get('expanded', 0)))
+                protocol=row['protocol'] or 'http';item.setData(0,PROTOCOL,protocol)
+                item.setIcon(0,tree_icon(protocol,PROTOCOL_COLORS[protocol]))
+                if USE_REQON_UI:item.setData(0,METHOD,'gRPC' if protocol=='grpc' else row['method'] or 'GET')
+            item.addChildren([node(child_kind,child) for child_kind,child in children[key]])
             return item
-        for kind, id, name, _ in self.store.children(): node(kind, id, name, self.tree)
-        if selected:
-            item = self.tree_item(*selected)
-            if item: self.tree.setCurrentItem(item)
-        self.tree.blockSignals(False)
-        self.filter_tree(self.search.text())
-        self.sync_tree_tabs()
+        roots=[node(kind,row) for kind,row in children[('root',None)]]
+        blocked=self.tree.blockSignals(True);updates=self.tree.updatesEnabled();self.tree.setUpdatesEnabled(False)
+        try:
+            self._tree_index={};self.tree.clear();self.tree.addTopLevelItems(roots)
+            # Keep Python QIconEngine owners alive while Qt items share the icons.
+            self._tree_index=index;self._tree_expanded=expanded;self._tree_icons=icons
+            self._tree_snapshot=snapshot
+            if selected in index:self.tree.setCurrentItem(index[selected])
+            self.filter_tree(self.search.text());self.sync_tree_tabs()
+            self.tree.verticalScrollBar().setValue(scroll)
+        finally:
+            self.tree.blockSignals(blocked);self.tree.setUpdatesEnabled(updates)
+
+    def update_tree_values(self,snapshot):
+        """Keep existing Qt nodes for metadata-only edits and unchanged refreshes."""
+        previous=getattr(self,'_tree_snapshot',None)
+        if previous is None:return False
+        structure=('id','sort_order','collection_id','folder_id','parent_id','request_id')
+        changes=[]
+        for kind,rows in snapshot.items():
+            old=previous.get(kind,[])
+            if len(rows)!=len(old):return False
+            for before,after in zip(old,rows):
+                if any(before.get(key)!=after.get(key) for key in structure):return False
+                if before!=after:changes.append((kind,after))
+        blocked=self.tree.blockSignals(True)
+        try:
+            for kind,row in changes:
+                item=self._tree_index[(kind,row['id'])]
+                item.setText(0,row['name']);item.setToolTip(0,row['name'])
+                if kind=='collection':
+                    item.setData(0,ROLE,(kind,row['id'],row['kind']))
+                    item.setData(0,STAR,row['starred'])
+                elif kind=='request':
+                    protocol=row['protocol'] or 'http'
+                    item.setData(0,PROTOCOL,protocol)
+                    key=(protocol,PROTOCOL_COLORS[protocol])
+                    if key not in self._tree_icons:self._tree_icons[key]=icon(*key)
+                    item.setIcon(0,self._tree_icons[key])
+                    if USE_REQON_UI:item.setData(0,METHOD,'gRPC' if protocol=='grpc' else row['method'] or 'GET')
+                if kind!='example':self._tree_expanded[(kind,row['id'])]=bool(row.get('expanded',False))
+            self._tree_snapshot=snapshot
+            if changes:self.filter_tree(self.search.text())
+            self.sync_tree_tabs()
+        finally:self.tree.blockSignals(blocked)
+        return True
 
     def persist_expansion(self, item, expanded):
         if getattr(self, '_filtering_tree', False) or self.search.text().strip(): return
         kind, id, *_ = item.data(0, ROLE)
         if kind != 'example':
+            self._tree_expanded[(kind,id)]=bool(expanded)
             self.store.db.execute(f'UPDATE {TABLES[kind]} SET expanded=? WHERE id=?', (int(expanded), id)); self.store.db.commit()
 
     def filter_tree(self, text):
@@ -95,7 +149,8 @@ class CollectionActions:
             kind, id, *_ = item.data(0, ROLE)
             if query:
                 if found and item.childCount(): item.setExpanded(True)
-            elif kind != 'example': item.setExpanded(bool(self.store.entity(kind, id)['expanded']))
+            elif kind != 'example' and item.isExpanded()!=self._tree_expanded.get((kind,id),False):
+                item.setExpanded(self._tree_expanded.get((kind,id),False))
             return found
         try:
             for i in range(self.tree.topLevelItemCount()): match(self.tree.topLevelItem(i))
@@ -106,6 +161,15 @@ class CollectionActions:
         if not hasattr(self, 'workbench'): return
         for index in reversed(range(self.workbench.count())):
             page = self.workbench.widget(index)
+            from deferred_page import DeferredPage
+            if isinstance(page,DeferredPage):
+                if page.request_id:
+                    rows=self.store.all('SELECT collection_id,folder_id,name FROM requests WHERE id=?',(page.request_id,))
+                    if rows:
+                        page.collection_id,page.folder_id,page.title=rows[0]
+                        self.workbench.setTabText(index,page.title)
+                    else:self.workbench.removeTab(index);page.deleteLater()
+                continue
             if getattr(page, 'request_id', None):
                 rows = self.store.all('SELECT collection_id,folder_id,name FROM requests WHERE id=?', (page.request_id,))
                 if not rows:
@@ -141,7 +205,7 @@ class CollectionActions:
         for index in range(self.workbench.count()):
             page = self.workbench.widget(index)
             if (kind == 'request' and getattr(page, 'request_id', None) == id) or getattr(page, 'entity_key', None) == (kind, id):
-                self.workbench.setCurrentIndex(index); return page
+                self.workbench.setCurrentIndex(index); return self.materialize_tab(index)
         if kind == 'collection': page = CollectionPage(self, id)
         elif kind == 'example': page = ExamplePage(self, id)
         else:

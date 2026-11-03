@@ -21,11 +21,13 @@ class ThemePreferences:
     def __init__(self,store):
         self.store=store;self.config=ThemeConfig();self.error=''
         rows=store.all("SELECT data FROM workspace_state WHERE key='theme'")
+        self._persisted=bool(rows)
         if rows:
             try:
                 values=json.loads(rows[0][0]);config=replace(self.config,**{key:value for key,value in values.items() if key in ThemeConfig.__dataclass_fields__});config.validate();self.config=config
             except (ValueError,TypeError,AttributeError):self.error='Saved theme settings could not be read. Dark theme is active.'
     def save(self,config):
         config.validate()
+        if self._persisted and config==self.config and not self.error:return
         with self.store.atomic():self.store.db.execute("INSERT OR REPLACE INTO workspace_state(key,data) VALUES('theme',?)",(json.dumps(asdict(config)),))
-        self.config=config;self.error=''
+        self.config=config;self.error='';self._persisted=True

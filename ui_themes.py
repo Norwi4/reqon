@@ -101,7 +101,6 @@ class ThemesPage(QWidget):
             cards.addWidget(card,1);card.select.currentIndexChanged.connect(lambda index,card=card:self.save(**{card.period:card.select.itemData(index)}))
         self.pages.addWidget(self.manual_page);self.pages.addWidget(self.system_page);layout.addWidget(self.pages)
         layout.addSpacing(12);self.status=QLabel(self.controller.preferences.error);self.status.setObjectName('proxyValidation');self.status.setWordWrap(True);layout.addWidget(self.status);layout.addStretch()
-        set_style(self,'QLabel#themeActive {color:#aab2bd;background:#343434;border-radius:3px;padding:2px 4px;font-size:9px;font-weight:600;}')
         self.controller.changed.connect(self.refresh);self.refresh()
     def save(self,**values):
         try:self.controller.set_config(replace(self.controller.config,**values));self.status.clear()

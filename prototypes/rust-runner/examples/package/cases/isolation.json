@@ -1,0 +1,13 @@
+{
+  "schema_version": "reqon-case/v1",
+  "id": "CASE-002",
+  "name": "Independent case variables",
+  "steps": [
+    {
+      "type": "javascript",
+      "id": "isolation",
+      "script": "assert(typeof vars.objectId === 'undefined', 'variables leaked between cases'); return {isolated: true};",
+      "timeout_ms": 100
+    }
+  ]
+}

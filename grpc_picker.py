@@ -43,7 +43,6 @@ class MethodSelector(QFrame):
         set_style(self.editor,stylesheet('border:0;background:transparent;padding:0 8px;')); layout.addWidget(self.editor,1)
         self.arrow=tool('chevron','Select a service and method',self.toggle); layout.addWidget(self.arrow)
         self.editor.installEventFilter(self); self.editor.textChanged.connect(self.filter_methods)
-        QApplication.instance().installEventFilter(self)
 
     def _create_popup(self):
         if self.popup is not None:return
@@ -116,10 +115,12 @@ class MethodSelector(QFrame):
         if self._expanded:return
         QToolTip.hideText()
         self._create_popup(); self._expanded=True; self.setProperty('expanded',True); self.style().unpolish(self); self.style().polish(self)
+        QApplication.instance().installEventFilter(self)
         self.editor.setReadOnly(False); self.editor.clear(); self.editor.setPlaceholderText('Search services and methods'); self.editor.setFocus()
         self.update_state(); self.reposition(); self.popup.show(); self.popup.raise_(); self.opened.emit()
     def dismiss(self):
         if not self._expanded:return
+        QApplication.instance().removeEventFilter(self)
         self._expanded=False; self.popup.hide(); self.editor.setReadOnly(True); self.editor.setText(self.display); self.editor.setPlaceholderText('Select a method')
         self.setProperty('expanded',False); self.style().unpolish(self); self.style().polish(self)
     def reposition(self):

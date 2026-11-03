@@ -6,6 +6,7 @@ import threading
 from contextlib import contextmanager, nullcontext
 from importlib.resources import files
 from pathlib import Path
+from collections import OrderedDict
 
 import grpc
 from request_transport import TLSOptions, GRPCOptions, grpc_target, grpc_metadata, tls_credentials, parse_message
@@ -128,11 +129,21 @@ def compile_proto(source_path,directory):
     return str(target)
 
 
+_descriptor_cache=OrderedDict()
+_descriptor_cache_lock=threading.Lock()
+
+
 def _pool(channel, descriptor_file, metadata=(), schema_bytes=None, deadline=None):
     if schema_bytes is None and not descriptor_file:
         return descriptor_pool.DescriptorPool(ReflectionDatabase(channel,metadata,deadline))
+    content=schema_bytes if schema_bytes is not None else Path(descriptor_file).read_bytes()
+    key=hashlib.sha256(content).digest()
+    with _descriptor_cache_lock:
+        cached=_descriptor_cache.get(key)
+        if cached is not None:
+            _descriptor_cache.move_to_end(key);return cached[0]
     bundle = descriptor_pb2.FileDescriptorSet()
-    bundle.ParseFromString(schema_bytes if schema_bytes is not None else Path(descriptor_file).read_bytes())
+    bundle.ParseFromString(content)
     pool = descriptor_pool.DescriptorPool()
     pending = list(bundle.file)
     while pending:
@@ -145,6 +156,11 @@ def _pool(channel, descriptor_file, metadata=(), schema_bytes=None, deadline=Non
         if len(remaining) == len(pending):
             raise ValueError('Descriptor set has missing imports or invalid dependencies')
         pending = remaining
+    if len(content)<=8*1024*1024:
+        with _descriptor_cache_lock:
+            _descriptor_cache[key]=(pool,len(content))
+            while len(_descriptor_cache)>16 or sum(entry[1] for entry in _descriptor_cache.values())>8*1024*1024:
+                _descriptor_cache.popitem(last=False)
     return pool
 
 

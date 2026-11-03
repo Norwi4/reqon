@@ -6,6 +6,10 @@
 
 Интерфейс построен на Qt Widgets и PySide6. Поддерживаются Windows x64 и Linux x86-64.
 
+В версии **0.19.0** ускорены запуск с сохранёнными вкладками, работа редакторов, обновление больших коллекций и повторные gRPC-вызовы. В локальном тесте Windows запуск с 20 вкладками сократился с 13,3 до 1,7 секунды. Условия измерений и ограничения — в [заметках к выпуску](docs/release-0.19.0.md).
+
+Встроенный Rust CLI **0.14.1** выполняет обычные HTTP-запросы и все четыре типа gRPC через **Send / Invoke**, а также регрессионные пакеты через **File → Run regression package…** (`Ctrl+Shift+R`). Большие ответы показываются частями; Copy, Save и поиск работают с полным ответом. Отдельная установка CLI для готового приложения не нужна.
+
 [Сайт](https://reqon.ru/) · [Скачать](https://github.com/Norwi4/reqon/releases) · [Документация](https://reqon.ru/docs/) · [Сообщить об ошибке](https://github.com/Norwi4/reqon/issues)
 
 ![Reqon — HTTP-запрос и просмотр JSON-ответа](docs/readme/reqon-http.png)
@@ -26,16 +30,16 @@
 
 | Платформа | Версия | Установочный файл |
 | --- | --- | --- |
-| Windows x64 | **0.15.0** | [Скачать EXE](https://github.com/Norwi4/reqon/releases/download/v0.15.0/Reqon-Setup-0.15.0-win64.exe) |
-| Linux x86-64, glibc ≥ 2.36 | **0.13.9** | [Скачать TAR.GZ](https://github.com/Norwi4/reqon/releases/download/v0.13.9/Reqon-0.13.9-linux-x86_64.tar.gz) |
-| Astra Linux 1.8, amd64 | **0.13.9** | [Скачать DEB](https://github.com/Norwi4/reqon/releases/download/v0.13.9/reqon_0.13.9_astra1.8_amd64.deb) |
+| Windows x64 | **0.19.0** | [Скачать EXE](https://github.com/Norwi4/reqon/releases/download/v0.19.0/Reqon-Setup-0.19.0-win64.exe) |
+| Linux x86-64, glibc ≥ 2.36 | **0.19.0** | [Скачать TAR.GZ](https://github.com/Norwi4/reqon/releases/download/v0.19.0/Reqon-0.19.0-linux-x86_64.tar.gz) |
+| Astra Linux 1.8, amd64 | **0.19.0** | [Скачать DEB](https://github.com/Norwi4/reqon/releases/download/v0.19.0/reqon_0.19.0_astra1.8_amd64.deb) |
 
 Все версии доступны в [GitHub Releases](https://github.com/Norwi4/reqon/releases) и в [архиве на сайте](https://reqon.ru/download/). Для установки выбирайте EXE, TAR.GZ или DEB из раздела **Assets**. Python в готовых сборках уже включён.
 
 На странице каждого релиза есть файл `SHA256SUMS.txt` для проверки скачанных файлов. Пример проверки Windows-установщика:
 
 ```powershell
-Get-FileHash .\Reqon-Setup-0.15.0-win64.exe -Algorithm SHA256
+Get-FileHash .\Reqon-Setup-0.19.0-win64.exe -Algorithm SHA256
 ```
 
 ### Windows
@@ -49,7 +53,7 @@ Get-FileHash .\Reqon-Setup-0.15.0-win64.exe -Algorithm SHA256
 Распакуйте архив в отдельную папку и запустите приложение:
 
 ```sh
-tar -xzf Reqon-0.13.9-linux-x86_64.tar.gz
+tar -xzf Reqon-0.19.0-linux-x86_64.tar.gz
 ./Reqon/reqon
 ```
 
@@ -60,7 +64,7 @@ tar -xzf Reqon-0.13.9-linux-x86_64.tar.gz
 ### Astra Linux 1.8
 
 ```sh
-sudo apt install ./reqon_0.13.9_astra1.8_amd64.deb
+sudo apt install ./reqon_0.19.0_astra1.8_amd64.deb
 ```
 
 Запускайте приложение из меню или командой `reqon`. Команда `getman` сохранена для совместимости с прежними установками.
@@ -72,12 +76,17 @@ git clone https://github.com/Norwi4/reqon.git
 cd reqon
 ```
 
+Для отправки запросов из исходников нужен CLI 0.14.1. Соберите его с Rust 1.99.1 и C-компилятором для QuickJS. Зависимости закреплены в `prototypes/rust-runner/Cargo.lock`.
+
 Windows / PowerShell:
 
 ```powershell
 python -m venv .venv
 .venv\Scripts\Activate.ps1
 python -m pip install -r requirements.txt
+cargo build --manifest-path prototypes/rust-runner/Cargo.toml --release --locked
+New-Item -ItemType Directory -Force prototypes/rust-runner/dist
+Copy-Item prototypes/rust-runner/target/release/reqon-prototype.exe prototypes/rust-runner/dist/reqon.exe
 python main.py
 ```
 
@@ -87,6 +96,9 @@ Linux:
 python3 -m venv .venv
 . .venv/bin/activate
 python -m pip install -r requirements.txt
+cargo build --manifest-path prototypes/rust-runner/Cargo.toml --release --locked
+mkdir -p prototypes/rust-runner/dist
+cp prototypes/rust-runner/target/release/reqon-prototype prototypes/rust-runner/dist/reqon
 python main.py
 ```
 
@@ -106,7 +118,7 @@ Windows: `powershell -File packaging/build-windows.ps1`. Скрипт созда
 
 ```sh
 python -m pip install -r requirements-test.txt
-python -X faulthandler -m unittest discover -s tests -p "test_*.py" -v
+python tests/run_suite.py --output build/regression.json
 ```
 
-Изменения 0.15.0 описаны в [заметках к выпуску](docs/release-0.15.0.md).
+Изменения 0.19.0 описаны в [заметках к выпуску](docs/release-0.19.0.md).

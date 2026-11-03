@@ -1,5 +1,6 @@
 """Named desktop themes and the shared semantic color roles."""
 from dataclasses import dataclass
+from functools import lru_cache
 import re
 from ui_brand import COLORS,METHOD_COLORS,PROTOCOL_COLORS
 
@@ -87,7 +88,12 @@ for role,values in {
 
 def theme_color(value,usage='',literals=()):
     if not isinstance(value,str):return value
-    source=value.lower();theme=current_theme();colors=theme.colors
+    return _theme_color(value,usage,tuple(literals),current_theme().id)
+
+
+@lru_cache(maxsize=4096)
+def _theme_color(value,usage,literals,theme_id):
+    source=value.lower();theme=THEMES[theme_id];colors=theme.colors
     if source in literals:return value
     if source=='white':source='#ffffff'
     elif source=='black':source='#000000'
@@ -107,10 +113,14 @@ def theme_color(value,usage='',literals=()):
     return colors.get(role,value)
 
 
-def render_style(source,literals=()):
+def render_style(source,literals=(),theme_id=None):
     """Translate canonical widget styles without rewriting geometry or selectors."""
-    if current_theme().id=='dark':return source
-    literals=tuple(value.lower() for value in literals)
+    return _render_style(source,tuple(value.lower() for value in literals),theme_id or current_theme().id)
+
+
+@lru_cache(maxsize=512)
+def _render_style(source,literals,theme_id):
+    if theme_id=='dark':return source
     def block(match):
         text=match.group();background=re.search(r'background(?:-color)?\s*:\s*(#[0-9a-fA-F]{3,6})',text)
         solid=background and ROLES.get(background[1].lower()) in ('action','action_hover','accent')
@@ -119,8 +129,8 @@ def render_style(source,literals=()):
             def replace_color(color):
                 original=color.group()
                 if prop=='color' and solid and original.lower() in ('white','#ffffff','#fff','#f5f7fa'):
-                    bg=theme_color(background[1]);return '#ffffff' if contrast(bg,'#ffffff')>=contrast(bg,'#111111') else '#111111'
-                return theme_color(original,prop,literals)
+                    bg=_theme_color(background[1],'',(),theme_id);return '#ffffff' if contrast(bg,'#ffffff')>=contrast(bg,'#111111') else '#111111'
+                return _theme_color(original,prop,literals,theme_id)
             return prop+':'+re.sub(r'#[0-9a-fA-F]{3,8}\b|\bwhite\b|\bblack\b',replace_color,value)
         return re.sub(r'([\w-]+)\s*:([^;{}]+)',declaration,text)
     return re.sub(r'[^{}]+',block,source)

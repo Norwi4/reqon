@@ -37,6 +37,9 @@ dist/
 /scrinshot/
 /docs/ui/
 
+# Private server incident logs and configuration snapshots
+/.cache/security-20261103/
+
 # OS metadata
 .DS_Store
 Thumbs.db

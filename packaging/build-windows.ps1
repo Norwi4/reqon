@@ -1,8 +1,12 @@
 $ErrorActionPreference = 'Stop'
 Set-Location (Split-Path $PSScriptRoot -Parent)
+$runnerPath = Join-Path (Get-Location) 'prototypes/rust-runner/dist/reqon.exe'
+if (-not (Test-Path -LiteralPath $runnerPath)) { throw 'Build the Reqon CLI first: prototypes/rust-runner/ci/build-windows.ps1' }
+$expectedRunner = python -c 'from runner_controller import RUNNER_VERSION; print(RUNNER_VERSION)'
+if ((& $runnerPath --version) -ne ('reqon-runner-prototype ' + $expectedRunner)) { throw 'Bundled CLI version does not match the application.' }
 python -m pip install -r requirements.txt
 if ($LASTEXITCODE -ne 0) { throw 'Dependency installation failed.' }
-python -m PyInstaller --noconfirm --clean --windowed --collect-data grpc_tools --name Reqon --add-data 'assets/fonts;assets/fonts' --copy-metadata PySocks --copy-metadata httpcore --copy-metadata jsonschema --collect-data jsonschema_specifications --icon Reqon_Icon_Pack_Approved/windows/reqon.ico --version-file packaging/reqon-version-info.txt --add-data 'Reqon_Icon_Pack_Approved/windows/reqon.ico;Reqon_Icon_Pack_Approved/windows' --add-data 'Reqon_Icon_Pack_Approved/png/transparent;Reqon_Icon_Pack_Approved/png/transparent' --add-data 'reqon-ui-states v2/dark;reqon-ui-states v2/dark' --add-data 'reqon-ui-states v2/light;reqon-ui-states v2/light' --add-data 'reqon-ui-states v2/manifest.json;reqon-ui-states v2' main.py
+python -m PyInstaller --noconfirm --clean --windowed --collect-data grpc_tools --name Reqon --add-binary 'prototypes/rust-runner/dist/reqon.exe;runner' --add-data 'assets/fonts;assets/fonts' --copy-metadata PySocks --copy-metadata httpcore --copy-metadata jsonschema --collect-data jsonschema_specifications --icon Reqon_Icon_Pack_Approved/windows/reqon.ico --version-file packaging/reqon-version-info.txt --add-data 'Reqon_Icon_Pack_Approved/windows/reqon.ico;Reqon_Icon_Pack_Approved/windows' --add-data 'Reqon_Icon_Pack_Approved/png/transparent;Reqon_Icon_Pack_Approved/png/transparent' --add-data 'reqon-ui-states v2/dark;reqon-ui-states v2/dark' --add-data 'reqon-ui-states v2/light;reqon-ui-states v2/light' --add-data 'reqon-ui-states v2/manifest.json;reqon-ui-states v2' main.py
 if ($LASTEXITCODE -ne 0) { throw 'Application build failed.' }
 Compress-Archive -Path dist/Reqon -DestinationPath dist/Reqon-windows.zip -Force
 if ($LASTEXITCODE -ne 0) { throw 'Portable archive creation failed.' }

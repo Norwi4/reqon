@@ -36,11 +36,14 @@ class StateIllustration(QWidget):
         super().__init__();self.setFixedSize(size,size);self.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         self.pixmap=QPixmap();self.set_state(state)
     def set_state(self,state):
+        variant='dark' if current_theme().dark else 'light'
+        if getattr(self,'state',False)==state and getattr(self,'variant',None)==variant and not self.pixmap.isNull():return
+        self.variant=variant
         if state is None:
             self.state=None;self.asset_id=None;self.pixmap=QPixmap(str(asset_path('png/transparent/reqon-512.png')));self.update();return
         self.asset_id=STATE_ASSETS.get(state,state)
         if self.asset_id not in state_manifest():raise ValueError('Unknown UI state: '+state)
-        self.state=state;self.variant='dark' if current_theme().dark else 'light'
+        self.state=state
         self.pixmap=QPixmap(str(state_root()/state_manifest()[self.asset_id][self.variant]))
         if self.pixmap.isNull():raise ValueError('Cannot load UI state: '+state)
         self.update()

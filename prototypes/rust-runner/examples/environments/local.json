@@ -1,0 +1,7 @@
+{
+  "schema_version": "reqon-environment/v1",
+  "id": "local",
+  "endpoint": "http://127.0.0.1:50051",
+  "variables": {"label": "example", "expectedCount": 3},
+  "metadata": {"x-test-label": "${label}"}
+}

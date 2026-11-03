@@ -1,0 +1,86 @@
+{
+  "$defs": {
+    "Requirements": {
+      "additionalProperties": false,
+      "properties": {
+        "capabilities": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "engine": {
+          "type": "string"
+        },
+        "version": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "engine",
+        "version",
+        "capabilities"
+      ],
+      "type": "object"
+    }
+  },
+  "$id": "urn:reqon:package:v1",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Reqon JSON package v1. Run validate for IDs, references, paths, engine capabilities and other semantic checks. YAML/legacy Java execution is not supported by this schema.",
+  "properties": {
+    "cases": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "default_suite": {
+      "default": null,
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "id": {
+      "type": "string"
+    },
+    "name": {
+      "type": "string"
+    },
+    "requires": {
+      "$ref": "#/$defs/Requirements"
+    },
+    "schema_version": {
+      "const": "reqon-package/v1",
+      "type": "string"
+    },
+    "suites": {
+      "default": [],
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "timeout_ms": {
+      "default": 60000,
+      "format": "uint64",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "variables": {
+      "additionalProperties": true,
+      "default": {},
+      "type": "object"
+    }
+  },
+  "required": [
+    "schema_version",
+    "id",
+    "name",
+    "requires",
+    "cases"
+  ],
+  "title": "Manifest",
+  "type": "object"
+}

@@ -1,0 +1,258 @@
+{
+  "$defs": {
+    "Config": {
+      "additionalProperties": false,
+      "properties": {
+        "bootstrap_servers": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "password": {
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "sasl_mechanism": {
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "subscribe_timeout_ms": {
+          "default": null,
+          "format": "uint64",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "tls": {
+          "default": false,
+          "type": "boolean"
+        },
+        "username": {
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "type": "object"
+    },
+    "Profile": {
+      "additionalProperties": false,
+      "properties": {
+        "addresses": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "default": {},
+          "type": "object"
+        },
+        "call_timeout_ms": {
+          "default": 60000,
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "targets": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "default": {},
+          "type": "object"
+        },
+        "use_default_endpoint": {
+          "default": true,
+          "type": "boolean"
+        }
+      },
+      "type": "object"
+    },
+    "SecretRef": {
+      "additionalProperties": false,
+      "properties": {
+        "env": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "env"
+      ],
+      "type": "object"
+    },
+    "TransportConfig": {
+      "additionalProperties": false,
+      "properties": {
+        "allow_plaintext_remote": {
+          "default": false,
+          "type": "boolean"
+        },
+        "ca_cert": {
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "client_cert": {
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "client_key": {
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "grpc_descriptor_set": {
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "grpc_emit_defaults": {
+          "default": false,
+          "type": "boolean"
+        },
+        "grpc_include_paths": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "grpc_proto_files": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "proxy": {
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "proxy_authorization": {
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "script_http_max_calls": {
+          "default": 0,
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "script_http_origins": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "type": "object"
+    }
+  },
+  "$id": "urn:reqon:environment:v1",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Public environment values and process-environment secret references. Use validate for semantic checks; never store secret values here.",
+  "properties": {
+    "endpoint": {
+      "default": null,
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "id": {
+      "type": "string"
+    },
+    "kafka": {
+      "$ref": "#/$defs/Config",
+      "default": {
+        "bootstrap_servers": [],
+        "password": null,
+        "sasl_mechanism": null,
+        "subscribe_timeout_ms": null,
+        "tls": false,
+        "username": null
+      }
+    },
+    "metadata": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "default": {},
+      "type": "object"
+    },
+    "regression": {
+      "$ref": "#/$defs/Profile",
+      "default": {
+        "addresses": {},
+        "call_timeout_ms": 60000,
+        "targets": {},
+        "use_default_endpoint": true
+      }
+    },
+    "schema_version": {
+      "const": "reqon-environment/v1",
+      "type": "string"
+    },
+    "secrets": {
+      "additionalProperties": {
+        "$ref": "#/$defs/SecretRef"
+      },
+      "default": {},
+      "type": "object"
+    },
+    "transport": {
+      "$ref": "#/$defs/TransportConfig",
+      "default": {
+        "allow_plaintext_remote": false,
+        "ca_cert": null,
+        "client_cert": null,
+        "client_key": null,
+        "grpc_descriptor_set": null,
+        "grpc_emit_defaults": false,
+        "grpc_include_paths": [],
+        "grpc_proto_files": [],
+        "proxy": null,
+        "proxy_authorization": null,
+        "script_http_max_calls": 0,
+        "script_http_origins": []
+      }
+    },
+    "variables": {
+      "additionalProperties": true,
+      "default": {},
+      "type": "object"
+    }
+  },
+  "required": [
+    "schema_version",
+    "id"
+  ],
+  "title": "Environment",
+  "type": "object"
+}

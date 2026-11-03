@@ -20,12 +20,20 @@ class VariableCompletion(QObject):
         editor=self.editor
         if isinstance(editor,QLineEdit):text=editor.text()[:editor.cursorPosition()]
         else:
-            cursor=editor.textCursor();cursor.movePosition(QTextCursor.MoveOperation.Start,QTextCursor.MoveMode.KeepAnchor);text=cursor.selectedText()
+            # Completion only needs the suffix on this line. Walk earlier
+            # blocks only for the supported '{{ <newline> name' spelling.
+            cursor=editor.textCursor();text=cursor.block().text().encode('utf-16-le')[:cursor.positionInBlock()*2].decode('utf-16-le')
+            block=cursor.block().previous()
+            while re.fullmatch(r'\s*[^{}\s]*',text) and block.isValid():
+                text=block.text()+'\n'+text
+                if '{{' in text or not re.fullmatch(r'\s*[^{}\s]*',text):break
+                block=block.previous()
         match=re.search(r'\{\{\s*([^{}\s]*)$',text)
         return match.group(1) if match else None
     def refresh(self):
+        if not settings().autocomplete or not self.editor.hasFocus():self.completer.popup().hide();return
         prefix=self.prefix()
-        if not settings().autocomplete or prefix is None or not self.editor.hasFocus():self.completer.popup().hide();return
+        if prefix is None:self.completer.popup().hide();return
         self.model.setStringList(sorted(self.provider()));self.completer.setCompletionPrefix(prefix)
         if self.completer.completionCount():self.completer.complete()
         else:self.completer.popup().hide()

@@ -23,8 +23,17 @@ from PyInstaller.archive.writers import CArchiveWriter
 
 ROOT = Path(__file__).resolve().parents[1]
 WORK = ROOT / 'build/linux-refresh'
-VERSION = '0.13.4'
+VERSION = '0.19.0'
 QT_VERSION = '6.11.3'
+
+
+def runner_payload():
+    data = (ROOT / 'prototypes/rust-runner/dist/reqon').read_bytes()
+    record = json.loads((ROOT / 'prototypes/rust-runner/dist/reqon-linux-build.json').read_text())
+    expected = re.search(r"RUNNER_VERSION = '([^']+)'", (ROOT / 'runner_controller.py').read_text()).group(1)
+    if not data.startswith(b'\x7fELF') or record['version'] != expected or record['sha256'] != hashlib.sha256(data).hexdigest():
+        raise ValueError('Build the matching Linux Reqon CLI before packaging the application')
+    return data
 
 
 def is_qt_runtime(relative):
@@ -157,7 +166,9 @@ def refresh_executable(executable, python311, verify=True, python_overlay=None):
     if python_overlay is not None:
         command.append('--overlay=' + str(python_overlay))
     subprocess.run(command, check=True)
-    replacements = {'main': (WORK / 'main.marshal').read_bytes(), 'PYZ.pyz': (WORK / 'updated-PYZ.pyz').read_bytes()}
+    runner = runner_payload()
+    replacements = {
+        './opt/reqon/_internal/runner/reqon': (runner, 0o755),'main': (WORK / 'main.marshal').read_bytes(), 'PYZ.pyz': (WORK / 'updated-PYZ.pyz').read_bytes()}
     data, toc = bytearray(), []
     for name, (_, _, _, compressed, kind) in archive.toc.items():
         raw = replacements.get(name)

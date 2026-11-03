@@ -1,0 +1,63 @@
+{
+  "schema_version": "reqon-prototype/v1",
+  "id": "create-and-check",
+  "endpoint": "http://127.0.0.1:50051",
+  "timeout_ms": 10000,
+  "steps": [
+    {
+      "type": "grpc",
+      "id": "create",
+      "method": "poc.Workflow/Create",
+      "request": {
+        "name": "example"
+      },
+      "expect": [
+        {
+          "path": "/serverCallInfo/success",
+          "equals": true
+        }
+      ],
+      "save": {
+        "objectId": "/id"
+      }
+    },
+    {
+      "type": "grpc",
+      "id": "wait-for-created",
+      "method": "poc.Workflow/Get",
+      "request": {
+        "id": "${objectId}"
+      },
+      "expect": [
+        {
+          "path": "/serverCallInfo/success",
+          "equals": true
+        },
+        {
+          "path": "/id",
+          "equals": "${objectId}"
+        }
+      ],
+      "poll": {
+        "read_only": true,
+        "interval_ms": 20,
+        "timeout_ms": 1000,
+        "until": [
+          {
+            "path": "/status",
+            "equals": "CREATED"
+          }
+        ]
+      },
+      "save": {
+        "pollCount": "/count"
+      }
+    },
+    {
+      "type": "javascript",
+      "id": "script-check",
+      "timeout_ms": 100,
+      "script": "assert(response.id === vars.objectId, 'id mismatch'); assert(vars.pollCount === 3, 'numeric variable lost'); return {verified: true};"
+    }
+  ]
+}

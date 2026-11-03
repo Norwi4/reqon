@@ -217,13 +217,12 @@ class CollectionPage(QWidget):
     def refresh(self):
         store = self.window.store; row = store.entity('collection', self.collection_id)
         if self.title.text()!=row['name']:self.title.setText(row['name'])
-        requests = store.all('SELECT data FROM requests WHERE collection_id=?', (self.collection_id,))
-        grpc = sum(json.loads(r[0]).get('kind') == 'grpc' for r in requests)
+        requests,grpc = store.all("SELECT COUNT(*),COALESCE(SUM(json_extract(data,'$.kind')='grpc'),0) FROM requests WHERE collection_id=?", (self.collection_id,))[0]
         folders = store.all('SELECT COUNT(*) FROM folders WHERE collection_id=?', (self.collection_id,))[0][0]
         if USE_REQON_UI:
-            self.count.setText(f'{len(requests)} requests');self.title.setToolTip(row['name'])
-            self.protocol_counts.setText(f'{len(requests)-grpc} HTTP · {grpc} gRPC\n{folders} folders')
-        else:self.count.setText(f'{len(requests)} requests   ·   {len(requests)-grpc} HTTP   ·   {grpc} gRPC   ·   {folders} folders')
+            self.count.setText(f'{requests} requests');self.title.setToolTip(row['name'])
+            self.protocol_counts.setText(f'{requests-grpc} HTTP · {grpc} gRPC\n{folders} folders')
+        else:self.count.setText(f'{requests} requests   ·   {requests-grpc} HTTP   ·   {grpc} gRPC   ·   {folders} folders')
         index = self.window.workbench.indexOf(self)
         if index >= 0: self.window.workbench.setTabText(index, row['name'])
     def save_description(self):

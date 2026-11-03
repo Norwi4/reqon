@@ -1,0 +1,74 @@
+{
+  "schema_version": "reqon-case/v1",
+  "id": "CASE-001",
+  "timeout_ms": 10000,
+  "steps": [
+    {
+      "type": "grpc",
+      "id": "create",
+      "method": "poc.Workflow/Create",
+      "request": {
+        "name": "example"
+      },
+      "expect": [
+        {
+          "path": "/serverCallInfo/success",
+          "equals": true
+        }
+      ],
+      "save": {
+        "objectId": "/id"
+      }
+    },
+    {
+      "type": "grpc",
+      "id": "wait-for-created",
+      "method": "poc.Workflow/Get",
+      "request": {
+        "id": "${objectId}"
+      },
+      "expect": [
+        {
+          "path": "/serverCallInfo/success",
+          "equals": true
+        },
+        {
+          "path": "/id",
+          "equals": "${objectId}"
+        }
+      ],
+      "poll": {
+        "read_only": true,
+        "interval_ms": 20,
+        "timeout_ms": 1000,
+        "until": [
+          {
+            "path": "/status",
+            "equals": "CREATED"
+          }
+        ]
+      },
+      "save": {
+        "pollCount": "/count"
+      }
+    },
+    {
+      "type": "javascript",
+      "id": "script-check",
+      "timeout_ms": 100,
+      "script": "assert(response.id === vars.objectId, 'id mismatch'); assert(vars.pollCount === 3, 'numeric variable lost'); return {verified: true};"
+    }
+  ],
+  "name": "Create and wait for completion",
+  "tags": [
+    "smoke"
+  ],
+  "annotations": {
+    "vziskaniya": {
+      "bf": "example",
+      "domain": "example",
+      "kind": "positive",
+      "zephyr": "EXAMPLE-T1"
+    }
+  }
+}

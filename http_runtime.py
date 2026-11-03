@@ -162,14 +162,14 @@ def read_limited(chunks,encoding,limit):
     return b''.join(pieces),wire
 
 
-def send_http(data,variables,proxy,cookies,cancellation):
+def send_http(data,variables,proxy,cookies,cancellation,*,native=False):
     contexts=[]
-    try:return _send_http(data,variables,proxy,cookies,cancellation,contexts)
+    try:return _send_http(data,variables,proxy,cookies,cancellation,contexts,native)
     finally:
         for context in contexts:context.keylog_filename=None
 
 
-def _send_http(data,variables,proxy,cookies,cancellation,contexts):
+def _send_http(data,variables,proxy,cookies,cancellation,contexts,native=False):
     started=time.monotonic();config=data['_general'];options=HTTPOptions.from_data(data,variables)
     deadline=started+options.timeout if options.timeout else None
     version=data.get('http_version',config.http_version)
@@ -193,7 +193,10 @@ def _send_http(data,variables,proxy,cookies,cancellation,contexts):
         exchange.require_h2=version=='HTTP/2'
         exchange.strict_http=data.get('http_strict_parser',False)
         kwargs=dict(ssl_context=context,http1=version!='HTTP/2',http2=version!='HTTP/1.x',network_backend=exchange,max_connections=1)
-        if route and route.protocol=='http' and not tunnel:
+        if native:
+            from native_request import HTTPPool
+            pool=HTTPPool(data,variables,options,context,route,deadline,cancellation)
+        elif route and route.protocol=='http' and not tunnel:
             pool=httpcore.HTTPProxy('http://'+route.authority,proxy_auth=(route.username,route.password) if route.username else None,**kwargs)
         else:pool=httpcore.ConnectionPool(**kwargs)
         outgoing=[(k.encode('ascii'),v.encode('utf-8')) for k,v in request.header_items() if k.lower()!='proxy-authorization']

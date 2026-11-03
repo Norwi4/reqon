@@ -42,14 +42,6 @@ def settings_tab(page,data):
     scroll=QScrollArea(); scroll.setWidgetResizable(True); scroll.setFrameShape(QScrollArea.Shape.NoFrame)
     scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
     content=QWidget(); content.setObjectName('grpcSettings'); scroll.setWidget(content)
-    set_style(content,stylesheet('''
-        QWidget#grpcSettings { background:#212121; }
-        QLabel { font-size:12px; color:#ababab; }
-        QLabel#settingTitle { font-weight:600; }
-        QLineEdit { background:#212121; border:1px solid #333; border-radius:3px;
-            font-size:12px; padding:4px 8px; color:#e6e6e6; }
-        QLineEdit:focus { border-color:#6a6a6a; }
-    '''))
     layout=QGridLayout(content); layout.setContentsMargins(30,14,24,28)
     layout.setHorizontalSpacing(30); layout.setVerticalSpacing(20)
     layout.setColumnStretch(0,2); layout.setColumnStretch(1,1)

@@ -3,6 +3,7 @@ from PySide6.QtCore import Qt,Signal,QTimer
 from PySide6.QtWidgets import QWidget,QVBoxLayout,QHBoxLayout,QLabel,QTableWidget,QTableWidgetItem,QHeaderView,QAbstractItemView
 from ui_components import KeyValueTable,tool
 from http_features import preview_headers
+from shiboken6 import isValid
 
 
 class HeadersPanel(QWidget):
@@ -32,6 +33,7 @@ class HeadersPanel(QWidget):
         else:self.disabled.add(name)
         self.changed.emit()
     def refresh(self):
+        if not isValid(self.page):return
         if not hasattr(self.page,'http_schema'):return
         if hasattr(self.page.window(),'store') and not self.page.window().isVisible():return
         data=self.page.runtime_data_provider() if hasattr(self.page,'runtime_data_provider') else self.page.collect()

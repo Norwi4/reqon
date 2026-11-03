@@ -8,6 +8,7 @@ TOKENS=re.compile(STRING+r'|//[^\r\n]*|/\*[\s\S]*?\*/|[{}\[\],:]|[^/\s{}\[\],:]+
 
 def comment_ranges(text,in_block=False,allow_incomplete=False):
     """Return comment spans and continuation state, ignoring quoted strings."""
+    if not in_block and '/' not in text:return [],False
     spans=[];i=0;length=len(text)
     while i<length:
         if in_block or text.startswith('/*',i):
@@ -31,7 +32,9 @@ def comment_ranges(text,in_block=False,allow_incomplete=False):
 
 
 def strip_comments(text):
-    spans,_=comment_ranges(text);chars=list(text)
+    spans,_=comment_ranges(text)
+    if not spans:return text
+    chars=list(text)
     for start,end in spans:
         for i in range(start,end):
             if chars[i] not in '\r\n':chars[i]=' '
@@ -44,10 +47,15 @@ def normalize(text):
     return re.sub(STRING+r'|,(?=\s*[}\]])',lambda match:match.group() if match.group().startswith('"') else ' ',clean)
 
 
-def loads(text):return json.loads(normalize(text))
+def loads(text):
+    # Most request bodies are ordinary JSON. Avoid scanning every character in
+    # Python unless comments/trailing commas actually require normalization.
+    try:return json.loads(text)
+    except json.JSONDecodeError:return json.loads(normalize(text))
 
 
 def looks_like_json(text):
+    if text.lstrip().startswith(('{','[')):return True
     try:return strip_comments(text).lstrip().startswith(('{','['))
     except json.JSONDecodeError:return text.lstrip().startswith(('{','[','/*'))
 

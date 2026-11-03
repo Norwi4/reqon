@@ -46,6 +46,8 @@ class GeneralController:
             signal.connect(lambda *_,page=page:page.general_overrides.setChecked(True))
 
     def apply_general_page(self,page):
+        from deferred_page import DeferredPage
+        if isinstance(page,DeferredPage):self.set_request_tab_icon(page);return
         from ui_pages import RequestPage,GrpcPage
         config=self.general_preferences.config
         if isinstance(page,(RequestPage,GrpcPage)):
@@ -91,6 +93,8 @@ class GeneralController:
         if index>=0:self.env_combo.setItemText(index,'Без окружения' if config.language=='Русский' else 'No Environment')
 
     def close_general_page(self,page):
+        from deferred_page import DeferredPage
+        if isinstance(page,DeferredPage):return True
         config=self.general_preferences.config
         if not hasattr(page,'_draft_id') or not hasattr(page,'collect'):return self.flush_page(page,force=True)
         dirty=page.collect()!=getattr(page,'_saved',None)

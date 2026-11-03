@@ -2,7 +2,9 @@
 from ui_theming import theme_qcolor
 import json
 import re
-from PySide6.QtCore import Qt, QSize, QRect, QRectF, QByteArray, Signal
+import time
+from functools import lru_cache
+from PySide6.QtCore import Qt, QSize, QRect, QRectF, QByteArray, Signal, QTimer, QSignalBlocker
 from PySide6.QtGui import QColor, QIcon, QIconEngine, QPixmap, QPainter, QFont, QSyntaxHighlighter, QTextCharFormat, QTextOption
 from PySide6.QtSvg import QSvgRenderer
 from PySide6.QtWidgets import (QWidget, QPushButton, QToolButton, QPlainTextEdit, QVBoxLayout,
@@ -58,6 +60,17 @@ PATHS = {
 }
 
 
+@lru_cache(maxsize=256)
+def icon_renderer(name,color):
+    svg=f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><g fill="none" stroke="{color}" stroke-width="1.35" stroke-linecap="round" stroke-linejoin="round">{PATHS.get(name,PATHS["docs"])}</g></svg>'
+    return QSvgRenderer(QByteArray(svg.encode()))
+
+
+@lru_cache(maxsize=128)
+def syntax_format(color):
+    result=QTextCharFormat();result.setForeground(QColor(color));return result
+
+
 class ThemeIconEngine(QIconEngine):
     """Render at paint time so existing actions and buttons follow the palette."""
     def __init__(self,name,color):super().__init__();self.name=name;self.color=color
@@ -65,8 +78,7 @@ class ThemeIconEngine(QIconEngine):
     def isNull(self):return False
     def paint(self,painter,rect,mode,state):
         color=theme_qcolor(self.color).name()
-        svg=f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><g fill="none" stroke="{color}" stroke-width="1.35" stroke-linecap="round" stroke-linejoin="round">{PATHS.get(self.name,PATHS["docs"])}</g></svg>'
-        QSvgRenderer(QByteArray(svg.encode())).render(painter,QRectF(rect))
+        icon_renderer(self.name,color).render(painter,QRectF(rect))
     def pixmap(self,size,mode,state):
         pixmap=QPixmap(size);pixmap.fill(Qt.GlobalColor.transparent)
         painter=QPainter(pixmap);self.paint(painter,QRect(0,0,size.width(),size.height()),mode,state);painter.end();return pixmap
@@ -108,23 +120,25 @@ class ProtocolButton(QToolButton):
 
 
 class Syntax(QSyntaxHighlighter):
+    suspended = False
     pattern = re.compile(r'//[^\n]*|"(?:\\.|[^"\\])*"|\b(?:true|false|null)\b|(?<![\w])[-+]?\d+(?:\.\d+)?(?:[eE][-+]?\d+)?')
     def highlightBlock(self, text):
+        if self.suspended:self.setCurrentBlockState(0);return
         for match in self.pattern.finditer(text):
             value = match.group()
             if value.startswith('//'): color = '#858575'
             elif value.startswith('"'): color = '#9cdcfe' if text[match.end():].lstrip().startswith(':') else '#ce9178'
             elif value in ('true','false','null'): color = '#569cd6'
             else: color = '#b5cea8'
-            fmt = QTextCharFormat(); fmt.setForeground(theme_qcolor(color)); self.setFormat(match.start(), len(value), fmt)
+            self.setFormat(match.start(),len(value),syntax_format(theme_qcolor(color).name()))
         if USE_REQON_UI and text.lstrip().startswith('<'):
-            fmt=QTextCharFormat();fmt.setForeground(theme_qcolor(C['key']))
+            fmt=syntax_format(theme_qcolor(C['key']).name())
             for match in re.finditer(r'</?[\w:.-]+|/?>',text):self.setFormat(match.start(),len(match.group()),fmt)
         if USE_REQON_UI:
             from json_comments import comment_ranges
             spans,in_block=comment_ranges(text,self.previousBlockState()==1,allow_incomplete=True)
             self.setCurrentBlockState(1 if in_block else 0)
-            fmt=QTextCharFormat();fmt.setForeground(theme_qcolor(C['subtle']))
+            fmt=syntax_format(theme_qcolor(C['subtle']).name())
             for start,end in spans:
                 self.setFormat(len(text[:start].encode('utf-16-le'))//2,len(text[start:end].encode('utf-16-le'))//2,fmt)
 
@@ -147,6 +161,9 @@ class CodeEditor(QPlainTextEdit):
         self.setTabStopDistance(self.fontMetrics().horizontalAdvance(' ') * 4)
         self.document().setDocumentMargin(8)
         self.gutter = Gutter(self); self.highlighter = Syntax(self.document())
+        self._theme_block=None
+        self._theme_timer=QTimer(self);self._theme_timer.setInterval(10);self._theme_timer.timeout.connect(self._refresh_syntax_chunk)
+        self.verticalScrollBar().valueChanged.connect(self._refresh_visible_syntax)
         self.blockCountChanged.connect(self.update_margin); self.updateRequest.connect(self.update_gutter)
         self.setPlainText(text); self.setReadOnly(readonly); self.update_margin()
         if USE_REQON_UI:
@@ -156,12 +173,58 @@ class CodeEditor(QPlainTextEdit):
             from ui_editor_behavior import settings
             apply_editor_font(self,settings())
 
+    def setPlainText(self,text):
+        highlighter=getattr(self,'highlighter',None)
+        gradual=highlighter is not None and highlighter.document()==self.document() and len(text)>32768
+        if gradual:highlighter.suspended=True
+        super().setPlainText(text)
+        if gradual:
+            self._theme_block=0
+            # QSyntaxHighlighter also posts an initial full rehighlight. Keep it
+            # cheap until that queued pass has run, then colour bounded chunks.
+            QTimer.singleShot(0,self._resume_syntax)
+    def _resume_syntax(self):
+        self.highlighter.suspended=False
+        if self.isVisible():self._refresh_visible_syntax();self._theme_timer.start()
+
     def update_margin(self):
         presentation=getattr(self,'presentation',None)
         self.setViewportMargins(24+self.fontMetrics().horizontalAdvance(str(self.blockCount())),0,0,presentation.bottom_margin if presentation else 0)
     def setPlaceholderText(self,text):
         self._placeholder=text;self.viewport().update()
     def placeholderText(self):return getattr(self,'_placeholder','')
+    def refresh_syntax_theme(self):
+        self._theme_timer.stop();self._theme_block=None
+        if self.highlighter.document()!=self.document():return
+        if self.document().characterCount()<=32768:
+            with QSignalBlocker(self):self.highlighter.rehighlight()
+            return
+        # Recolour the viewport immediately; large hidden documents wait until shown.
+        # Remaining blocks are handled in short event-loop slices without editing text.
+        self._theme_block=0
+        if self.isVisible():self._refresh_visible_syntax();self._theme_timer.start()
+    def _refresh_visible_syntax(self,*_):
+        if self.highlighter.suspended or self._theme_block is None or not self.isVisible() or self.highlighter.document()!=self.document():return
+        block=self.firstVisibleBlock();top=self.blockBoundingGeometry(block).translated(self.contentOffset()).top()
+        with QSignalBlocker(self):
+            while block.isValid() and top<=self.viewport().height():
+                self.highlighter.rehighlightBlock(block)
+                top+=self.blockBoundingRect(block).height();block=block.next()
+    def _refresh_syntax_chunk(self):
+        if self.highlighter.suspended:return
+        if self._theme_block is None or not self.isVisible() or self.highlighter.document()!=self.document():
+            self._theme_timer.stop();return
+        block=self.document().findBlockByNumber(self._theme_block);started=time.perf_counter();count=0
+        with QSignalBlocker(self):
+            while block.isValid() and count<64 and time.perf_counter()-started<.003:
+                self.highlighter.rehighlightBlock(block);block=block.next();count+=1
+        if block.isValid():self._theme_block=block.blockNumber()
+        else:self._theme_block=None;self._theme_timer.stop()
+    def showEvent(self,event):
+        super().showEvent(event)
+        if self._theme_block is not None:self._refresh_visible_syntax();self._theme_timer.start()
+    def hideEvent(self,event):
+        self._theme_timer.stop();super().hideEvent(event)
     def paintEvent(self,event):
         super().paintEvent(event)
         if self.document().isEmpty() and self.placeholderText():

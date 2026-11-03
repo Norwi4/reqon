@@ -89,3 +89,5 @@ if USE_REQON_UI:
     STYLE=stylesheet(STYLE)+WINDOWS_STYLE
     from ui_typography import STYLE as TYPOGRAPHY_STYLE
     STYLE+=TYPOGRAPHY_STYLE
+    from ui_theme_rules import COMPONENT_STYLE
+    STYLE+=COMPONENT_STYLE

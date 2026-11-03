@@ -1,0 +1,13 @@
+# Versions used for the Windows experiment. Only the fixture needs Python.
+grpcio==1.85.1
+grpcio-reflection==1.81.1
+protobuf==6.33.6
+# Used to verify the exported JSON Schema independently of the Rust loader.
+jsonschema>=4.23,<5
+cryptography>=46,<48
+psycopg[binary]==3.3.6
+psutil==7.2.2
+# Only java_adapter_acceptance.py needs Kafka administration/production for its local fixture.
+kafka-python==2.2.15
+# qt_smoke.py additionally uses the repository's PySide6 installation.
+# benchmark.py additionally needs the current application's dependencies.

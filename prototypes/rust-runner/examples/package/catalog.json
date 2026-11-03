@@ -1,0 +1,25 @@
+{
+  "schema_version": "reqon-package/v1",
+  "id": "example-regression",
+  "name": "Example regression package",
+  "requires": {
+    "engine": "reqon",
+    "version": ">=0.3.0, <0.15.0",
+    "capabilities": [
+      "grpc.unary",
+      "javascript",
+      "poll"
+    ]
+  },
+  "cases": [
+    "cases/chain.json",
+    "cases/isolation.json",
+    "cases/disabled.json"
+  ],
+  "suites": [
+    "suites/smoke.json",
+    "suites/reverse.json"
+  ],
+  "default_suite": "smoke",
+  "timeout_ms": 60000
+}

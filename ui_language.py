@@ -88,7 +88,7 @@ class LanguageFilter(QObject):
         if isinstance(obj,QTabWidget) and obj.objectName()!='workbench':
             for i in range(obj.count()):self.field(obj,lambda i=i:obj.tabText(i),lambda text,i=i:obj.setTabText(i,text),'tab'+str(i))
     def eventFilter(self,obj,event):
-        if not self.busy and event.type() in (QEvent.Type.Show,QEvent.Type.Polish,QEvent.Type.Paint,QEvent.Type.ActionAdded):
+        if not self.busy and isinstance(obj,QWidget) and event.type() in (QEvent.Type.Show,QEvent.Type.Polish,QEvent.Type.Paint,QEvent.Type.ActionAdded):
             self.busy=True
             try:self.translate(obj)
             finally:self.busy=False
@@ -98,7 +98,10 @@ class LanguageFilter(QObject):
 def apply_language(window,language):
     app=QApplication.instance();translator=getattr(app,'reqon_language_filter',None)
     if translator is None:
-        translator=LanguageFilter();app.reqon_language_filter=translator;app.installEventFilter(translator)
+        translator=LanguageFilter();app.reqon_language_filter=translator
+    # English is the source language: it needs no per-event translation work.
+    app.removeEventFilter(translator)
+    if language=='Русский':app.installEventFilter(translator)
     translator.language=language;translator.busy=True
     try:
         for obj in [window,*window.findChildren(QObject)]:translator.translate(obj)

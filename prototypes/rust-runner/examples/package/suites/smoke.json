@@ -1,0 +1,10 @@
+{
+  "schema_version": "reqon-suite/v1",
+  "id": "smoke",
+  "name": "Smoke",
+  "cases": [
+    "CASE-001",
+    "CASE-002",
+    "CASE-003"
+  ]
+}

@@ -3,10 +3,8 @@ import re
 import sqlite3
 import sys
 import time
-import urllib.error
-import urllib.request
 from pathlib import Path
-from grpc_support import invoke, Cancellation, rpc_error
+from grpc_support import Cancellation, rpc_error
 from ui_pages import RequestPage, GrpcPage, Job
 from ui_shell import build_shell
 from ui_components import icon, tool
@@ -15,7 +13,6 @@ from collection_store import CollectionStore
 from collection_actions import CollectionActions
 from ui_collections import CollectionPage, ExamplePage
 from autosave import Autosave
-from request_transport import prepare_http,open_http,decode_http_content
 from code_snippets import generate_snippet
 from response_errors import failure_result
 from ui_brand import USE_REQON_UI,DISPLAY_NAME,VERSION,brand_icon,windows_identity
@@ -65,16 +62,21 @@ class Store(CollectionStore):
     def save_request(self, data, request_id=None, collection_id=None, folder_id=None):
         with self.atomic():
             if request_id:
-                row = self.entity('request', request_id)
-                self.db.execute('UPDATE requests SET name=?,data=? WHERE id=?', (data['name'], json.dumps(data), request_id))
-                collection_id = row['collection_id']; result = request_id
+                rows = self.all("SELECT collection_id,COALESCE(json_extract(data,'$.kind'),'http') FROM requests WHERE id=?", (request_id,))
+                if not rows:raise ValueError('This item no longer exists.')
+                collection_id,previous_kind=rows[0]
+                kind_changed=previous_kind!=data.get('kind','http')
+                self.db.execute('UPDATE requests SET name=:name,data=:data WHERE id=:id AND (name<>:name OR data<>:data)',
+                    {'name':data['name'],'data':json.dumps(data),'id':request_id})
+                result = request_id
             else:
+                kind_changed=True
                 self.entity('collection', collection_id)
                 if folder_id is not None and self.entity('folder', folder_id)['collection_id'] != collection_id:
                     raise ValueError('The folder is in another collection.')
                 result = self.insert('requests', {'collection_id': collection_id, 'folder_id': folder_id,
                                     'name': data['name'], 'data': json.dumps(data)})
-            self.reconcile_kind(collection_id)
+            if kind_changed:self.reconcile_kind(collection_id)
             return result
 
     def insert(self, table, values):
@@ -132,6 +134,11 @@ class Worker(QThread):
 
     def cancel(self):self.cancellation.cancel()
 
+    def emit_response(self,result):
+        from response_format import prepare_response
+        from general_settings import GeneralConfig
+        self.done.emit(prepare_response(result,self.data.get('kind')=='grpc',self.general_config or GeneralConfig()))
+
     def run(self):
         t = time.monotonic()
         try:
@@ -140,22 +147,16 @@ class Worker(QThread):
                 from general_settings import effective_request
                 d=effective_request(d,self.general_config,self.storage)
             if d.get('kind') == 'grpc':
-                self.done.emit(invoke(dict(d,_proxy_config=self.proxy_config), v, expand,self.cancellation))
+                from native_request import invoke as native_invoke
+                self.emit_response(native_invoke(dict(d,_proxy_config=self.proxy_config), v, expand,self.cancellation))
                 return
-            if self.general_config:
-                from http_runtime import send_http
-                self.done.emit(send_http(d,v,self.proxy_config,self.cookies,self.cancellation));return
-            url,method,headers,body=prepare_http(d,v)
-            req = urllib.request.Request(url, data=body, headers=headers, method=method)
-            try: response = open_http(req,d,v,self.proxy_config)
-            except urllib.error.HTTPError as e: response = e
-            with response:
-                content = response.read(); wire_size=len(content)
-                content = decode_http_content(content,response.headers.get('Content-Encoding',''))
-                result = {'status': response.status, 'reason': response.reason, 'headers': dict(response.headers),
-                          'body': content.decode(response.headers.get_content_charset() or 'utf-8', errors='replace'),
-                          'size': wire_size, 'url': url, 'duration': round((time.monotonic()-t)*1000)}
-            self.done.emit(result)
+            from http_runtime import send_http
+            from general_settings import GeneralConfig
+            from runner_controller import RUNNER_VERSION
+            if '_general' not in d:d=dict(d,_general=GeneralConfig())
+            result=send_http(d,v,self.proxy_config,self.cookies,self.cancellation,native=True)
+            result.update(engine='rust',engine_version=RUNNER_VERSION)
+            self.emit_response(result)
         except Exception as e:
             message='Request cancelled.' if self.cancellation.cancelled else rpc_error(e) if self.data.get('kind')=='grpc' else str(e)
             result=failure_result(e,self.data.get('kind','http'),round((time.monotonic()-t)*1000,2),message,self.cancellation.cancelled)
@@ -177,6 +178,8 @@ class MainWindow(GeneralController, Autosave, CollectionActions, QMainWindow):
         return super().nativeEvent(event_type,message)
 
     def __init__(self, store=None):
+        from ui_lifecycle import install_gui_collector
+        install_gui_collector()
         from ui_typography import load_fonts
         if USE_REQON_UI:load_fonts()
         super().__init__()
@@ -208,6 +211,7 @@ class MainWindow(GeneralController, Autosave, CollectionActions, QMainWindow):
                    ('Export collections…', self.export_collections, 'Ctrl+Shift+E'),
                    ('Open local link', self.open_local_link, 'Ctrl+L'),
                    ('Open local draft', self.open_draft_dialog, ''),
+                   ('Run regression package…', self.show_runner, 'Ctrl+Shift+R'),
                    ('Code snippet', self.show_code_snippet, ''), ('Copy as cURL / gRPCurl', self.copy_curl, ''), ('Quit', self.close, 'Ctrl+Q')]
         actions.insert(-1,('Settings',self.show_settings,'Ctrl+,'))
         for label, callback, shortcut in actions:
@@ -221,6 +225,12 @@ class MainWindow(GeneralController, Autosave, CollectionActions, QMainWindow):
         save = QAction('Save Request', self); save.setShortcut(QKeySequence('Ctrl+S'))
         save.triggered.connect(lambda:self.save_request(self.workbench.currentWidget()) if self.workbench.currentWidget() else None)
         self.addAction(save)
+
+    def show_runner(self):
+        from ui_runner import RunnerDialog
+        if not getattr(self, 'runner_dialog', None):
+            self.runner_dialog = RunnerDialog(self)
+        self.runner_dialog.show(); self.runner_dialog.raise_(); self.runner_dialog.activateWindow()
 
     def select_nav(self, name, toggle=False):
         if toggle and name==self._active_nav and not self._sidebar_collapsed:
@@ -283,6 +293,9 @@ class MainWindow(GeneralController, Autosave, CollectionActions, QMainWindow):
         self.save_workspace()
 
     def closeEvent(self,event):
+        runner=getattr(self,'runner_dialog',None)
+        if runner and runner.controller.running:
+            runner.controller.cancel();self.hide();self._idle_close_timer.start();event.ignore();return
         settings=getattr(self,'settings_overlay',None)
         if settings and not settings.save_pending():event.ignore();return
         if not all(self.close_general_page(self.workbench.widget(i)) for i in range(self.workbench.count())) or not self.save_workspace():
@@ -575,7 +588,7 @@ def main():
     app.setApplicationVersion(VERSION)
     if USE_REQON_UI:
         app.setApplicationDisplayName(DISPLAY_NAME);app.setWindowIcon(brand_icon(True))
-    app.setStyle('Fusion'); app.setStyleSheet(STYLE)
+    app.setStyle('Fusion')
     try:
         store = Store(options.data_dir)
     except (OSError, sqlite3.Error) as error:

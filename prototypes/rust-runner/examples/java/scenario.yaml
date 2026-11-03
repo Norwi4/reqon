@@ -1,0 +1,40 @@
+id: JAVA-LOCAL-001
+name: Create and observe an isolated object
+bf: '3.08'
+domain: local
+kind: positive
+tags: [smoke]
+steps:
+  - name: Create fixture object
+    service: Workflow
+    method: create
+    request:
+      name: local-demo
+    save:
+      objectId: id
+  - pause: PT0.01S
+  - name: Wait for CREATED
+    service: poc.Workflow
+    method: Get
+    request:
+      id: ${objectId}
+    poll:
+      interval: 20ms
+      timeout: 2s
+      until:
+        equalTo:
+          status: CREATED
+    expect:
+      equalTo:
+        count: 3
+      notEmpty: [id]
+    save:
+      pollCount: count
+  - name: Use a typed saved value
+    service: poc.Workflow
+    method: Echo
+    request:
+      payload: 'count=${pollCount}'
+    expect:
+      equalTo:
+        payload: count=3

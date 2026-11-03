@@ -112,26 +112,6 @@ class SettingsOverlay(QWidget):
         for widget in (self.system,self.environment,self.custom,self.http,self.https,self.system_auth,self.auth):widget.toggled.connect(self.changed)
         for widget in (self.host,self.port,self.username,self.password,self.system_username,self.system_password):widget.textChanged.connect(self.changed)
         self.protocol.currentIndexChanged.connect(self.changed);self.bypass.textChanged.connect(self.changed)
-        set_style(self,'''
-          QFrame#settingsCard {background:#212121;border-radius:7px;}
-          QFrame#settingsNavigation {background:#262626;border-top-left-radius:7px;border-bottom-left-radius:7px;}
-          QWidget#proxySettings,QWidget#generalSettings,QWidget#themesSettings {background:#212121;}
-          QPushButton#settingsNavItem {border:0;text-align:left;background:transparent;padding:6px 10px;font-size:12px;font-weight:500;}
-          QPushButton#settingsNavItem:checked {background:#3b3b3b;color:#f2f2f2;}
-          QPushButton#settingsNavItem:disabled {color:#8e8e8e;}
-          QLabel#settingsHeading {font-size:18px;font-weight:600;}
-          QLabel#settingsSection {font-size:13px;font-weight:600;}
-          QLabel#settingsDescription {font-size:12px;color:#9b9b9b;}
-          QFrame#proxySetting {border-bottom:1px solid #2d2d2d;}
-          QLabel#proxyValidation {font-size:11px;color:#ed968d;}
-          QLineEdit,QComboBox,QPlainTextEdit,QSpinBox {font-size:12px;border:1px solid #555;border-radius:3px;background:#262626;}
-          QSpinBox {min-height:28px;padding-left:8px;}
-          QRadioButton {font-size:12px;}
-          QLineEdit:disabled {border-color:#333;color:#777;}
-          QCheckBox {font-size:12px;}
-          QToolButton#settingsClose {background:transparent;border:0;}
-          QToolButton#settingsClose:hover {background:#343434;}
-        ''')
         for widget,label in [(self.host,'Proxy host'),(self.port,'Proxy port'),(self.protocol,'Proxy protocol'),(self.bypass,'Proxy bypass')]:widget.setAccessibleName(label)
         self.update_fields();self.status.setText(window.proxy_preferences.load_error)
 

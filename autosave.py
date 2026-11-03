@@ -2,13 +2,14 @@
 from ui_theming import set_style
 import json
 import uuid
-from PySide6.QtCore import QTimer
+from PySide6.QtCore import QTimer,QSignalBlocker
 from PySide6.QtWidgets import QInputDialog, QLabel, QLineEdit, QApplication, QAbstractItemView
 from ui_components import KeyValueTable
 from ui_pages import RequestPage, GrpcPage, Job
 from ui_collections import CollectionPage, ExamplePage, ROLE
 from collection_store import TABLES
 from ui_brand import USE_REQON_UI,stylesheet
+from deferred_page import DeferredPage
 
 
 class Autosave:
@@ -78,6 +79,7 @@ class Autosave:
                 item.setData(0,METHOD,'gRPC' if isinstance(page,GrpcPage) else page.method.currentText())
 
     def flush_page(self,page,force=False):
+        if isinstance(page,DeferredPage):return True
         if USE_REQON_UI and getattr(page,'is_environment_page',False):return page.flush()
         if isinstance(page,CollectionPage):return True
         if not force and not self.general_preferences.config.autosave:return True
@@ -120,7 +122,8 @@ class Autosave:
 
     def write_draft(self,uid,kind,name,data):
         self.store.db.execute('''INSERT INTO local_drafts(uid,kind,name,data) VALUES(?,?,?,?)
-            ON CONFLICT(uid) DO UPDATE SET kind=excluded.kind,name=excluded.name,data=excluded.data,updated_at=CURRENT_TIMESTAMP''',
+            ON CONFLICT(uid) DO UPDATE SET kind=excluded.kind,name=excluded.name,data=excluded.data,updated_at=CURRENT_TIMESTAMP
+            WHERE kind<>excluded.kind OR name<>excluded.name OR data<>excluded.data''',
             (uid,kind,name,json.dumps(data)))
 
     def flush_all(self):
@@ -139,15 +142,22 @@ class Autosave:
             entries=[]
             for index in range(self.workbench.count()):
                 page=self.workbench.widget(index)
+                if isinstance(page,DeferredPage):
+                    entries.append(page.session_entry);continue
                 if USE_REQON_UI and getattr(page,'is_environment_page',False):
                     entries.append({'kind':'environment','uid':page.uid});continue
                 if getattr(page,'request_id',None):key=('request',page.request_id)
                 else:key=getattr(page,'entity_key',None)
                 if key and key[1]:
-                    row=self.store.entity(*key); entries.append({'kind':key[0],'uid':row['uid']})
+                    rows=self.store.all(f'SELECT uid FROM {TABLES[key[0]]} WHERE id=?',(key[1],))
+                    if not rows:raise ValueError('This item no longer exists.')
+                    entries.append({'kind':key[0],'uid':rows[0][0]})
                 else:entries.append({'kind':'draft','uid':page._draft_id})
             data={'tabs':entries,'active':self.workbench.currentIndex(),'environment':self.env_combo.currentData()}
-            with self.store.atomic():self.store.db.execute("INSERT OR REPLACE INTO workspace_state(key,data) VALUES('session',?)",(json.dumps(data),))
+            serialized=json.dumps(data)
+            if serialized==getattr(self,'_saved_session',None):return True
+            with self.store.atomic():self.store.db.execute("INSERT OR REPLACE INTO workspace_state(key,data) VALUES('session',?)",(serialized,))
+            self._saved_session=serialized
             return True
         except Exception as error:
             for index in range(self.workbench.count()):self.set_save_status(self.workbench.widget(index),'Autosave failed: '+str(error),True)
@@ -161,26 +171,76 @@ class Autosave:
             if USE_REQON_UI and kind=='environment':
                 id=self.environments.data.from_uid(uid)
                 if id is not False:self.environments.open(id)
-            elif kind=='draft':self.open_draft(uid)
+            elif kind=='draft':
+                records=self.store.all('SELECT name,kind FROM local_drafts WHERE uid=?',(uid,))
+                if records and records[0][1] in ('http','grpc'):
+                    self.add_deferred_tab(entry,*records[0])
+                else:self.open_draft(uid)
             elif kind in TABLES:
                 rows=self.store.all(f'SELECT id FROM {TABLES[kind]} WHERE uid=?',(uid,))
                 if rows:
                     item=self.tree_item(kind,rows[0][0])
-                    if item:self.open_item(item)
+                    if item:
+                        if kind=='request':
+                            record=self.store.entity(kind,rows[0][0]);payload=json.loads(record['data'])
+                            self.add_deferred_tab(entry,record['name'],payload.get('kind','http'),record['id'],record['collection_id'],record['folder_id'])
+                        else:self.open_item(item)
         if not self.workbench.count():self.new_grpc_request()
         self.workbench.setCurrentIndex(min(max(data.get('active',0),0),self.workbench.count()-1))
+        self.materialize_tab(self.workbench.currentIndex())
         index=self.env_combo.findData(data.get('environment'))
         if index>=0:self.env_combo.setCurrentIndex(index)
         self._restoring_workspace=False
+        self.workbench.currentChanged.connect(self.materialize_tab)
         self.workbench.currentChanged.connect(lambda _:self._session_timer.start())
         self.workbench.tabBar().tabMoved.connect(lambda *_:self._session_timer.start())
         self.env_combo.currentIndexChanged.connect(lambda _:self._session_timer.start())
         self.save_workspace()
 
+    def add_deferred_tab(self,entry,name,kind,request_id=None,collection_id=None,folder_id=None):
+        from ui_components import tool
+        from PySide6.QtWidgets import QTabBar
+        page=DeferredPage(self,entry,name,kind,request_id,collection_id,folder_id)
+        index=self.workbench.addTab(page,name)
+        self.set_request_tab_icon(page)
+        close=tool('close','Close request',lambda:self.close_request_tab(self.workbench.indexOf(page)))
+        self.workbench.tabBar().setTabButton(index,QTabBar.ButtonPosition.RightSide,close)
+        return page
+
+    def materialize_tab(self,index):
+        page=self.workbench.widget(index)
+        if not isinstance(page,DeferredPage) or getattr(self,'_materializing_tab',False):return page
+        entry=page.session_entry
+        self._materializing_tab=True
+        restoring=self._restoring_workspace
+        self._restoring_workspace=True
+        try:
+            # Remove the placeholder from lookup while the normal creation path
+            # installs signals, preferences and autosave on the real editor.
+            with QSignalBlocker(self.workbench):
+                self.workbench.removeTab(index)
+                if entry['kind']=='draft':loaded=self.open_draft(entry['uid'])
+                else:
+                    item=self.tree_item('request',page.request_id)
+                    loaded=self.open_item(item) if item else None
+                if loaded is None:
+                    self.workbench.insertTab(index,page,page.title)
+                    self.workbench.setCurrentIndex(index)
+                    return page
+                self.workbench.tabBar().moveTab(self.workbench.indexOf(loaded),index)
+                self.workbench.setCurrentIndex(index)
+            page.deleteLater()
+        finally:
+            self._materializing_tab=False
+            self._restoring_workspace=restoring
+        self.workbench.currentChanged.emit(index)
+        return loaded
+
     def open_draft(self,uid):
         for index in range(self.workbench.count()):
             page=self.workbench.widget(index)
-            if getattr(page,'_draft_id',None)==uid:self.workbench.setCurrentIndex(index); return page
+            if getattr(page,'_draft_id',None)==uid:
+                self.workbench.setCurrentIndex(index);return self.materialize_tab(index)
         rows=self.store.all('SELECT kind,data FROM local_drafts WHERE uid=?',(uid,))
         if not rows:return
         kind,payload=rows[0]; data=json.loads(payload)
@@ -198,5 +258,6 @@ class Autosave:
         if ok:self.open_draft(rows[labels.index(label)][0]); self.save_workspace()
 
     def close_when_idle(self):
-        if not self.workers and not Job.running:
+        runner = getattr(self, 'runner_dialog', None)
+        if not self.workers and not Job.running and not (runner and runner.controller.running):
             self._idle_close_timer.stop(); self.close()

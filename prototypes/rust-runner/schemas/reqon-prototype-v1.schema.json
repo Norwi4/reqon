@@ -1,0 +1,891 @@
+{
+  "$defs": {
+    "Auth": {
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "password": {
+              "type": "string"
+            },
+            "type": {
+              "const": "basic",
+              "type": "string"
+            },
+            "username": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "username",
+            "password"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "token": {
+              "type": "string"
+            },
+            "type": {
+              "const": "bearer",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "token"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "Body": {
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "const": "empty",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "const": "json",
+              "type": "string"
+            },
+            "value": true
+          },
+          "required": [
+            "type",
+            "value"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "content_type": {
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "type": {
+              "const": "text",
+              "type": "string"
+            },
+            "value": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "value"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "fields": {
+              "items": {
+                "$ref": "#/$defs/Field"
+              },
+              "type": "array"
+            },
+            "type": {
+              "const": "form",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "fields"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "content_type": {
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "path": {
+              "type": "string"
+            },
+            "type": {
+              "const": "binary",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "path"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "parts": {
+              "items": {
+                "$ref": "#/$defs/Part"
+              },
+              "type": "array"
+            },
+            "type": {
+              "const": "multipart",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "parts"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "Call": {
+      "additionalProperties": false,
+      "properties": {
+        "expect": {
+          "$ref": "#/$defs/Expectation",
+          "default": {
+            "equalTo": {},
+            "errorCode": null,
+            "notEmpty": [],
+            "notNull": [],
+            "success": true
+          }
+        },
+        "method": {
+          "type": "string"
+        },
+        "poll": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Poll"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "request": {
+          "additionalProperties": true,
+          "default": {},
+          "type": "object"
+        },
+        "save": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "default": {},
+          "type": "object"
+        },
+        "service": {
+          "type": "string"
+        },
+        "target": {
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "service",
+        "method"
+      ],
+      "type": "object"
+    },
+    "Check": {
+      "additionalProperties": false,
+      "properties": {
+        "contains": true,
+        "equals": true,
+        "exists": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "greater_than": {
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "less_than": {
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "path": {
+          "default": "",
+          "type": "string"
+        },
+        "schema": true,
+        "target": {
+          "$ref": "#/$defs/CheckTarget",
+          "default": "body"
+        }
+      },
+      "type": "object"
+    },
+    "CheckTarget": {
+      "enum": [
+        "body",
+        "status",
+        "headers",
+        "trailers",
+        "elapsed_ms",
+        "grpc_code"
+      ],
+      "type": "string"
+    },
+    "Expectation": {
+      "additionalProperties": false,
+      "properties": {
+        "equalTo": {
+          "additionalProperties": true,
+          "default": {},
+          "type": "object"
+        },
+        "errorCode": {
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "notEmpty": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "notNull": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "success": {
+          "default": true,
+          "type": "boolean"
+        }
+      },
+      "type": "object"
+    },
+    "Field": {
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "value": true
+      },
+      "required": [
+        "name",
+        "value"
+      ],
+      "type": "object"
+    },
+    "Hooks": {
+      "additionalProperties": false,
+      "properties": {
+        "post": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/ScriptHook"
+          },
+          "type": "array"
+        },
+        "pre": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/ScriptHook"
+          },
+          "type": "array"
+        },
+        "tests": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/ScriptHook"
+          },
+          "type": "array"
+        }
+      },
+      "type": "object"
+    },
+    "KafkaWait": {
+      "additionalProperties": false,
+      "properties": {
+        "absent": {
+          "default": false,
+          "type": "boolean"
+        },
+        "expect": {
+          "$ref": "#/$defs/Expectation",
+          "default": {
+            "equalTo": {},
+            "errorCode": null,
+            "notEmpty": [],
+            "notNull": [],
+            "success": true
+          }
+        },
+        "format": {
+          "default": "json",
+          "type": "string"
+        },
+        "from": {
+          "default": "chain-start",
+          "type": "string"
+        },
+        "match": {
+          "additionalProperties": true,
+          "default": {},
+          "type": "object"
+        },
+        "save": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "default": {},
+          "type": "object"
+        },
+        "timeout": {
+          "default": "30s",
+          "type": "string"
+        },
+        "topic": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "topic"
+      ],
+      "type": "object"
+    },
+    "Part": {
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "type": {
+              "const": "text",
+              "type": "string"
+            },
+            "value": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "name",
+            "value"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "content_type": {
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "filename": {
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "name": {
+              "type": "string"
+            },
+            "path": {
+              "type": "string"
+            },
+            "type": {
+              "const": "file",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "name",
+            "path"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "Poll": {
+      "additionalProperties": false,
+      "properties": {
+        "interval": {
+          "default": "5s",
+          "type": "string"
+        },
+        "onTimeout": {
+          "default": "fail",
+          "type": "string"
+        },
+        "timeout": {
+          "default": "60s",
+          "type": "string"
+        },
+        "until": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Expectation"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "type": "object"
+    },
+    "Poll2": {
+      "additionalProperties": false,
+      "properties": {
+        "interval_ms": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "read_only": {
+          "description": "Explicit opt-in; only idempotent/read-only calls may be polled by this PoC.",
+          "type": "boolean"
+        },
+        "timeout_ms": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "until": {
+          "items": {
+            "$ref": "#/$defs/Check"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "interval_ms",
+        "timeout_ms",
+        "read_only",
+        "until"
+      ],
+      "type": "object"
+    },
+    "Redirects": {
+      "additionalProperties": false,
+      "properties": {
+        "allow_cross_origin": {
+          "default": false,
+          "type": "boolean"
+        },
+        "max": {
+          "default": 10,
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    },
+    "RequestSpec": {
+      "additionalProperties": false,
+      "properties": {
+        "auth": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Auth"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "body": {
+          "$ref": "#/$defs/Body",
+          "default": {
+            "type": "empty"
+          }
+        },
+        "cookies": {
+          "default": true,
+          "type": "boolean"
+        },
+        "headers": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "default": {},
+          "type": "object"
+        },
+        "max_request_bytes": {
+          "default": 8388608,
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "method": {
+          "default": "GET",
+          "type": "string"
+        },
+        "query": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/Field"
+          },
+          "type": "array"
+        },
+        "redirects": {
+          "$ref": "#/$defs/Redirects",
+          "default": {
+            "allow_cross_origin": false,
+            "max": 10
+          }
+        },
+        "url": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "url"
+      ],
+      "type": "object"
+    },
+    "ScriptHook": {
+      "additionalProperties": false,
+      "properties": {
+        "script": {
+          "type": "string"
+        },
+        "timeout_ms": {
+          "default": 2000,
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "script"
+      ],
+      "type": "object"
+    },
+    "Step": {
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "call": {
+              "$ref": "#/$defs/Call"
+            },
+            "id": {
+              "type": "string"
+            },
+            "type": {
+              "const": "regression_call",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "id",
+            "call"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "type": {
+              "const": "kafka",
+              "type": "string"
+            },
+            "wait": {
+              "$ref": "#/$defs/KafkaWait"
+            }
+          },
+          "required": [
+            "type",
+            "id",
+            "wait"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "expect": {
+              "default": [],
+              "items": {
+                "$ref": "#/$defs/Check"
+              },
+              "type": "array"
+            },
+            "expect_code": {
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "hooks": {
+              "$ref": "#/$defs/Hooks",
+              "default": {
+                "post": [],
+                "pre": [],
+                "tests": []
+              }
+            },
+            "id": {
+              "type": "string"
+            },
+            "method": {
+              "type": "string"
+            },
+            "poll": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/Poll2"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "request": {
+              "default": {}
+            },
+            "save": {
+              "additionalProperties": {
+                "type": "string"
+              },
+              "default": {},
+              "type": "object"
+            },
+            "timeout_ms": {
+              "default": 2000,
+              "format": "uint64",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "type": {
+              "const": "grpc",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "id",
+            "method"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "expect": {
+              "default": [],
+              "items": {
+                "$ref": "#/$defs/Check"
+              },
+              "type": "array"
+            },
+            "hooks": {
+              "$ref": "#/$defs/Hooks",
+              "default": {
+                "post": [],
+                "pre": [],
+                "tests": []
+              }
+            },
+            "id": {
+              "type": "string"
+            },
+            "poll": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/Poll2"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "request": {
+              "$ref": "#/$defs/RequestSpec"
+            },
+            "save": {
+              "additionalProperties": {
+                "type": "string"
+              },
+              "default": {},
+              "type": "object"
+            },
+            "timeout_ms": {
+              "default": 2000,
+              "format": "uint64",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "type": {
+              "const": "http",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "id",
+            "request"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "duration_ms": {
+              "format": "uint64",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "id": {
+              "type": "string"
+            },
+            "type": {
+              "const": "pause",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "id",
+            "duration_ms"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "script": {
+              "type": "string"
+            },
+            "timeout_ms": {
+              "default": 2000,
+              "format": "uint64",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "type": {
+              "const": "javascript",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "id",
+            "script"
+          ],
+          "type": "object"
+        }
+      ]
+    }
+  },
+  "$id": "urn:reqon:scenario:prototype:v1",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Experimental Reqon scenario structure. Run `validate` for semantic checks; this schema does not verify remote contracts or JavaScript behavior.",
+  "properties": {
+    "endpoint": {
+      "type": "string"
+    },
+    "id": {
+      "type": "string"
+    },
+    "max_response_bytes": {
+      "default": 4194304,
+      "format": "uint",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "metadata": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "default": {},
+      "type": "object"
+    },
+    "schema_version": {
+      "const": "reqon-prototype/v1",
+      "type": "string"
+    },
+    "steps": {
+      "items": {
+        "$ref": "#/$defs/Step"
+      },
+      "type": "array"
+    },
+    "timeout_ms": {
+      "default": 10000,
+      "format": "uint64",
+      "minimum": 0,
+      "type": "integer"
+    }
+  },
+  "required": [
+    "schema_version",
+    "id",
+    "endpoint",
+    "steps"
+  ],
+  "title": "Scenario",
+  "type": "object"
+}

@@ -1,0 +1,6 @@
+**
+!dist/
+!dist/reqon
+!dist/ca-certificates.crt
+!ci/
+!ci/Dockerfile
