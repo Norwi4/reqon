@@ -16,6 +16,9 @@ try {
     if (-not $versionMatch.Success) { throw 'Package version is missing.' }
     $description = if ($Binary -eq 'cli') { 'Reqon CLI collection runner' } else { 'Reqon' }
     & (Join-Path $PSScriptRoot 'embed-windows-version.ps1') -Executable $stagedBinary -Version $versionMatch.Groups[1].Value -Description $description -OriginalFilename $binaryName
+    # The updater copies this EXE as Reqon-update-helper.exe. Without an explicit
+    # execution level Windows can classify that filename as an elevated installer.
+    & (Join-Path $PSScriptRoot 'embed-windows-manifest.ps1') -Executable $stagedBinary
     Copy-Item -LiteralPath $stagedBinary -Destination $Destination -Force
 } finally {
     if (Test-Path -LiteralPath $stagedBinary) { Remove-Item -LiteralPath $stagedBinary }

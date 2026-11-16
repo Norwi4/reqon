@@ -65,6 +65,7 @@
 !/scripts/package-linux.sh
 !/scripts/embed-windows-icon.ps1
 !/scripts/embed-windows-version.ps1
+!/scripts/embed-windows-manifest.ps1
 !/scripts/publish-release.mjs
 !/scripts/getman-bridge.py
 !/scripts/collect_notices.py

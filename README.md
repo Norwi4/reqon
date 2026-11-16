@@ -1,4 +1,4 @@
-# Reqon 0.23.1
+# Reqon 0.23.2
 
 Нативный API-клиент для HTTP, gRPC и WebSocket. Интерфейс и сетевой движок работают на Rust; для запуска не нужны Python, Node.js или браузер.
 
@@ -12,14 +12,14 @@
 
 Готовые сборки находятся в [GitHub Releases](https://github.com/Norwi4/reqon/releases/latest).
 
-Установщик Windows x64: [Reqon-Setup-0.23.1.exe](https://github.com/Norwi4/reqon/releases/download/v0.23.1/Reqon-Setup-0.23.1.exe).
-Архив: [Reqon-0.23.1-windows-x86_64.zip](https://github.com/Norwi4/reqon/releases/download/v0.23.1/Reqon-0.23.1-windows-x86_64.zip).
-Контрольные суммы: [Reqon-0.23.1-SHA256SUMS.txt](https://github.com/Norwi4/reqon/releases/download/v0.23.1/Reqon-0.23.1-SHA256SUMS.txt).
-Оба комплекта содержат `Reqon.exe` (GUI) и `reqon-cli.exe` (CLI), а также руководство CLI и [описание выпуска](docs/release-0.23.1.md).
+Установщик Windows x64: [Reqon-Setup-0.23.2.exe](https://github.com/Norwi4/reqon/releases/download/v0.23.2/Reqon-Setup-0.23.2.exe).
+Архив: [Reqon-0.23.2-windows-x86_64.zip](https://github.com/Norwi4/reqon/releases/download/v0.23.2/Reqon-0.23.2-windows-x86_64.zip).
+Контрольные суммы: [Reqon-0.23.2-SHA256SUMS.txt](https://github.com/Norwi4/reqon/releases/download/v0.23.2/Reqon-0.23.2-SHA256SUMS.txt).
+Оба комплекта содержат `Reqon.exe` (GUI) и `reqon-cli.exe` (CLI), а также руководство CLI и [описание выпуска](docs/release-0.23.2.md).
 
 Последняя сборка Linux x86_64 — 0.22.0: [DEB](https://github.com/Norwi4/reqon/releases/download/v0.22.0/reqon_0.22.0_amd64.deb) и [TAR.GZ](https://github.com/Norwi4/reqon/releases/download/v0.22.0/Reqon-0.22.0-linux-x86_64.tar.gz). Оба комплекта содержат `reqon` (GUI) и `reqon-cli` (CLI). [Контрольные суммы Linux](https://github.com/Norwi4/reqon/releases/download/v0.22.0/Reqon-0.22.0-linux-SHA256SUMS.txt). [Установка и сборка для Linux](docs/linux.md).
 
-В установленной Windows-версии начиная с 0.23.0 доступны **Menu → Check for updates** и **Update and restart**. Выпуск 0.23.1 позволяет проверить обновление с 0.23.0: приложение скачивает и проверяет установщик, сохраняет рабочие пространства и черновики, устанавливает новую версию и перезапускается.
+В установленной Windows-версии начиная с 0.23.0 доступны **Menu → Check for updates** и **Update and restart**. В 0.23.2 исправлена ошибка 740 при запуске помощника обновления. Пользователям 0.23.0 и 0.23.1 нужно один раз установить 0.23.2 обычным способом; следующие выпуски устанавливаются из приложения с сохранением рабочих пространств и черновиков.
 
 Обновление с 0.19.0 автоматически переносит прежнюю SQLite-базу в новый формат. Исходная база остаётся нетронутой; перед переносом создаётся согласованная резервная копия. Подробнее: [обновление и восстановление](docs/upgrade-0.20.0.md).
 
