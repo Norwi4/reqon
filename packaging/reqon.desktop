@@ -1,0 +1,12 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=Reqon
+Comment=API client for HTTP, GraphQL, gRPC and WebSocket
+Comment[ru]=Клиент для работы с HTTP, GraphQL, gRPC и WebSocket API
+Exec=reqon
+Icon=reqon
+Terminal=false
+Categories=Development;
+Keywords=API;HTTP;REST;GraphQL;gRPC;WebSocket;
+StartupWMClass=Reqon

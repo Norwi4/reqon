@@ -1,0 +1,15 @@
+FROM rust:1.99.1-bookworm
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libxcb-render0-dev libxcb-shape0-dev libxcb-xfixes0-dev libxkbcommon-dev \
+    libssl-dev libfontconfig1-dev libwayland-dev \
+    libx11-6 libxi6 libxrandr2 libxcursor1 libxinerama1 libxkbcommon-x11-0 \
+    libegl1 libgl1 libvulkan1 mesa-vulkan-drivers \
+    dpkg-dev fakeroot desktop-file-utils xvfb xauth x11-utils imagemagick \
+    dbus-x11 fonts-dejavu-core libsecret-tools gnome-keyring \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN useradd --uid 1000 --create-home tester
+
+ENV CARGO_HOME=/cargo CARGO_TARGET_DIR=/target
+WORKDIR /src
