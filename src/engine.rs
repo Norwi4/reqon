@@ -539,8 +539,10 @@ impl Engine {
         let start = Instant::now();
         let preferences = self.preferences.lock().unwrap().clone();
         let url = request_url(&request, &vars)?;
+        let omitted_headers = crate::generated_headers::omitted(request, vars);
         let client_key = serde_json::to_string(&(
             request.portable["http_version"].as_str(),
+            &omitted_headers,
             request.timeout,
             request.verify_tls,
             request.follow_redirects,
@@ -570,6 +572,12 @@ impl Engine {
             client
         } else {
             let mut builder = Client::builder()
+                .omit_headers(
+                    omitted_headers
+                        .iter()
+                        .map(|name| HeaderName::from_bytes(name.as_bytes()))
+                        .collect::<Result<Vec<_>, _>>()?,
+                )
                 .cookie_provider(Arc::new(CookiePolicy {
                     jar: self.cookies.clone(),
                     store: preferences.store_cookies,
@@ -640,9 +648,11 @@ impl Engine {
         let method = reqwest::Method::from_bytes(request.http_method().as_bytes())
             .context("Invalid HTTP method")?;
         let mut headers = HeaderMap::new();
+        let generated_values = crate::generated_headers::custom_values(request, vars);
         for p in request
             .headers
             .iter()
+            .chain(&generated_values)
             .filter(|p| p.enabled && !p.key.is_empty())
         {
             let name = resolve(&p.key, vars);
@@ -783,9 +793,15 @@ impl Engine {
             format!("Request prepared in {} ms", start.elapsed().as_millis()),
         ];
         let mut prepared = req.build()?;
+        // Multipart builders may replace Content-Type; explicit values take priority.
+        if let Some(value) = headers.get("content-type") {
+            prepared.headers_mut().insert("content-type", value.clone());
+        }
         for (key, value) in crate::generated_headers::defaults(request) {
             let key = HeaderName::from_bytes(key.as_bytes())?;
-            if !prepared.headers().contains_key(&key) {
+            if !prepared.headers().contains_key(&key)
+                && !omitted_headers.iter().any(|name| name == key.as_str())
+            {
                 prepared
                     .headers_mut()
                     .insert(key, HeaderValue::from_static(value));
@@ -807,6 +823,11 @@ impl Engine {
             if !request.http_header_is_sent(name) {
                 prepared.headers_mut().remove(name);
             }
+        }
+        // Sign the same headers that will go on the wire. The transport repeats
+        // suppression after middleware that may reintroduce library defaults.
+        for name in &omitted_headers {
+            prepared.headers_mut().remove(name);
         }
         match request.auth.kind.as_str() {
             "wsse" => crate::auth::sign_wsse(&mut prepared, &request.auth, &vars)?,
@@ -1096,27 +1117,41 @@ pub fn curl(r: &Request, vars: &BTreeMap<String, String>) -> String {
                 .unwrap_or_else(|_| resolve(&r.url, vars))
         )
     );
-    for h in r.headers.iter().filter(|h| h.enabled && !h.key.is_empty()) {
+    let generated_values = crate::generated_headers::custom_values(r, vars);
+    let omitted_headers = crate::generated_headers::omitted(r, vars);
+    let effective_headers: Vec<_> = r
+        .headers
+        .iter()
+        .chain(&generated_values)
+        .filter(|h| h.enabled && !h.key.is_empty())
+        .collect();
+    for h in &effective_headers {
         if !r.http_header_is_sent(&resolve(&h.key, vars)) {
             continue;
         }
-        out.push_str(&format!(
-            " \\\n  --header {}",
-            quote(&format!(
-                "{}: {}",
-                resolve(&h.key, vars),
-                resolve(&h.value, vars)
-            ))
-        ));
+        let name = resolve(&h.key, vars);
+        let value = resolve(&h.value, vars);
+        let header = if value.is_empty() {
+            format!("{name};")
+        } else {
+            format!("{name}: {value}")
+        };
+        out.push_str(&format!(" \\\n  --header {}", quote(&header)));
     }
     for (name, value) in crate::generated_headers::defaults(r) {
-        if !r
-            .headers
+        if !effective_headers
             .iter()
-            .any(|p| p.enabled && resolve(&p.key, vars).eq_ignore_ascii_case(name))
+            .any(|p| resolve(&p.key, vars).eq_ignore_ascii_case(name))
+            && !omitted_headers
+                .iter()
+                .any(|key| key.eq_ignore_ascii_case(name))
         {
             out.push_str(&format!(" --header {}", quote(&format!("{name}: {value}"))));
         }
+    }
+    for name in &omitted_headers {
+        // An empty -H value prevents curl from reintroducing its own defaults.
+        out.push_str(&format!(" --header {}", quote(&format!("{name}:"))));
     }
     out.push_str(" --compressed");
     if r.auth.kind == "bearer" {
@@ -1197,10 +1232,10 @@ pub fn curl(r: &Request, vars: &BTreeMap<String, String>) -> String {
         _ => "",
     };
     if !content_type.is_empty()
-        && !r
-            .headers
+        && !effective_headers
             .iter()
-            .any(|p| p.enabled && p.key.eq_ignore_ascii_case("content-type"))
+            .any(|p| resolve(&p.key, vars).eq_ignore_ascii_case("content-type"))
+        && !omitted_headers.iter().any(|key| key == "content-type")
     {
         out.push_str(&format!(
             " \\\n  --header {}",

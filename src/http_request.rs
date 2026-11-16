@@ -74,6 +74,116 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn generated_headers_can_be_disabled_edited_and_reset_on_the_wire() {
+        use crate::generated_headers::{Override, set_override};
+        let names = [
+            "Host",
+            "Cache-Control",
+            "User-Agent",
+            "Accept",
+            "Accept-Encoding",
+            "Connection",
+            "Content-Type",
+        ];
+        let (url, server) = server(vec![response(200, "", "ok"); 4]).await;
+        let engine = Engine::default();
+        let mut request = Request {
+            url,
+            method: "POST".into(),
+            body_kind: BodyKind::Json,
+            body: "{}".into(),
+            ..Default::default()
+        };
+        for name in names {
+            set_override(
+                &mut request,
+                name,
+                Override {
+                    disabled: true,
+                    value: None,
+                },
+            );
+        }
+        let first = engine.execute(request.clone(), BTreeMap::new()).await;
+        assert!(first.error.is_empty(), "{}", first.error);
+        // Manual values win even over a disabled generated row, including variable names.
+        request.headers = vec![
+            Pair::new("{{header}}", "manual"),
+            Pair::new("ACCEPT", "text/plain"),
+        ];
+        let second = engine
+            .execute(
+                request.clone(),
+                BTreeMap::from([("header".into(), "User-Agent".into())]),
+            )
+            .await;
+        assert!(second.error.is_empty(), "{}", second.error);
+        request.headers.clear();
+        for name in names {
+            set_override(&mut request, name, Override::default());
+        }
+        set_override(
+            &mut request,
+            "User-Agent",
+            Override {
+                value: Some("{{agent}}".into()),
+                ..Default::default()
+            },
+        );
+        set_override(
+            &mut request,
+            "Host",
+            Override {
+                value: Some("override.test".into()),
+                ..Default::default()
+            },
+        );
+        set_override(
+            &mut request,
+            "Content-Type",
+            Override {
+                value: Some("application/custom".into()),
+                ..Default::default()
+            },
+        );
+        let third = engine
+            .execute(
+                request.clone(),
+                BTreeMap::from([("agent".into(), "edited".into())]),
+            )
+            .await;
+        assert!(third.error.is_empty(), "{}", third.error);
+        for name in names {
+            set_override(&mut request, name, Override::default());
+        }
+        let fourth = engine.execute(request, BTreeMap::new()).await;
+        assert!(fourth.error.is_empty(), "{}", fourth.error);
+        let wire = server.await.unwrap();
+        for name in names {
+            assert!(
+                !wire[0].headers.contains_key(&name.to_ascii_lowercase()),
+                "{name}: {:?}",
+                wire[0]
+            );
+        }
+        assert_eq!(wire[0].body, b"{}");
+        assert_eq!(wire[0].headers["content-length"], "2");
+        assert_eq!(wire[1].headers["user-agent"], "manual");
+        assert_eq!(wire[1].headers["accept"], "text/plain");
+        assert!(!wire[1].headers.contains_key("accept-encoding"));
+        assert_eq!(wire[2].headers["user-agent"], "edited");
+        assert_eq!(wire[2].headers["host"], "override.test");
+        assert_eq!(wire[2].headers["content-type"], "application/custom");
+        assert_eq!(
+            wire[3].headers["user-agent"],
+            crate::generated_headers::USER_AGENT
+        );
+        assert_eq!(wire[3].headers["accept"], "*/*");
+        assert_eq!(wire[3].headers["content-type"], "application/json");
+        assert!(wire[3].headers["host"].starts_with("127.0.0.1:"));
+    }
+
+    #[tokio::test]
     async fn generated_headers_reach_the_server_and_custom_values_win() {
         let (url, server) = server(vec![response(200, "", "ok"), response(200, "", "ok")]).await;
         let engine = Engine::default();

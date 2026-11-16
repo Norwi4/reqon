@@ -1,4 +1,4 @@
-# Reqon 0.21.1
+# Reqon 0.22.0
 
 Нативный API-клиент для HTTP, gRPC и WebSocket. Интерфейс и сетевой движок работают на Rust; для запуска не нужны Python, Node.js или браузер.
 
@@ -12,14 +12,14 @@
 
 Готовые сборки находятся в [GitHub Releases](https://github.com/Norwi4/reqon/releases/latest).
 
-Установщик Windows x64: [Reqon-Setup-0.21.1-win64.exe](https://github.com/Norwi4/reqon/releases/download/v0.21.1/Reqon-Setup-0.21.1-win64.exe).
-Архив: [Reqon-0.21.1-windows-x86_64.zip](https://github.com/Norwi4/reqon/releases/download/v0.21.1/Reqon-0.21.1-windows-x86_64.zip).
-Контрольные суммы: [Reqon-0.21.1-SHA256SUMS.txt](https://github.com/Norwi4/reqon/releases/download/v0.21.1/Reqon-0.21.1-SHA256SUMS.txt).
-Оба комплекта содержат `Reqon.exe` (GUI) и `reqon-cli.exe` (CLI), а также руководство CLI и [описание выпуска](docs/release-0.21.1.md).
+Установщик Windows x64: [Reqon-Setup-0.22.0-win64.exe](https://github.com/Norwi4/reqon/releases/download/v0.22.0/Reqon-Setup-0.22.0-win64.exe).
+Архив: [Reqon-0.22.0-windows-x86_64.zip](https://github.com/Norwi4/reqon/releases/download/v0.22.0/Reqon-0.22.0-windows-x86_64.zip).
+Контрольные суммы: [Reqon-0.22.0-SHA256SUMS.txt](https://github.com/Norwi4/reqon/releases/download/v0.22.0/Reqon-0.22.0-SHA256SUMS.txt).
+Оба комплекта содержат `Reqon.exe` (GUI) и `reqon-cli.exe` (CLI), а также руководство CLI и [описание выпуска](docs/release-0.22.0.md).
 
-Linux x86_64: [DEB](https://github.com/Norwi4/reqon/releases/download/v0.21.1/reqon_0.21.1_amd64.deb) и [TAR.GZ](https://github.com/Norwi4/reqon/releases/download/v0.21.1/Reqon-0.21.1-linux-x86_64.tar.gz). Оба комплекта содержат `reqon` (GUI) и `reqon-cli` (CLI). [Контрольные суммы Linux](https://github.com/Norwi4/reqon/releases/download/v0.21.1/Reqon-0.21.1-linux-SHA256SUMS.txt). [Установка и сборка для Linux](docs/linux.md).
+Linux x86_64: [DEB](https://github.com/Norwi4/reqon/releases/download/v0.22.0/reqon_0.22.0_amd64.deb) и [TAR.GZ](https://github.com/Norwi4/reqon/releases/download/v0.22.0/Reqon-0.22.0-linux-x86_64.tar.gz). Оба комплекта содержат `reqon` (GUI) и `reqon-cli` (CLI). [Контрольные суммы Linux](https://github.com/Norwi4/reqon/releases/download/v0.22.0/Reqon-0.22.0-linux-SHA256SUMS.txt). [Установка и сборка для Linux](docs/linux.md).
 
-В 0.21.1 исправлены gRPC-запросы с protobuf-обёртками `{"value": …}` и генерация примеров сообщений, включая загрузку схемы по кнопке и вложенные поля.
+В 0.22.0 автоматические HTTP-заголовки скрываются, редактируются и отключаются в общей таблице. Добавлены боковая навигация и дерево окружений рабочего пространства и коллекций.
 
 Обновление с 0.19.0 автоматически переносит прежнюю SQLite-базу в новый формат. Исходная база остаётся нетронутой; перед переносом создаётся согласованная резервная копия. Подробнее: [обновление и восстановление](docs/upgrade-0.20.0.md).
 
@@ -46,7 +46,7 @@ Linux x86_64: [DEB](https://github.com/Norwi4/reqon/releases/download/v0.21.1/re
 
 ## Структура исходников
 
-`src/` содержит приложение и общее ядро, `vendor/` — необходимые изменения библиотек интерфейса, `assets/` — ресурсы и лицензии. Скрипты сборки и упаковки находятся в `scripts/` и `packaging/`, руководства — в `docs/`.
+`src/` содержит приложение и общее ядро, `vendor/` — необходимые изменения библиотек интерфейса и HTTP, `assets/` — ресурсы и лицензии. Скрипты сборки и упаковки находятся в `scripts/` и `packaging/`, руководства — в `docs/`.
 
 Отдельные тестовые файлы, тестовые workflow, отчёты, скриншоты, архивы, готовые сборки и локальные профили исключены через `.gitignore`. Они могут храниться локально и не нужны для сборки приложения. Встроенные модули `#[cfg(test)]` внутри рабочих Rust-файлов остаются частью этих файлов; в обычную сборку они не входят.
 

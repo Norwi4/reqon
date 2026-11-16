@@ -489,6 +489,7 @@ fn curl(tokens: &[String]) -> Result<Imported> {
     let mut data = json!({"kind":"http","name":"Imported request","method":"GET","url":"","params":[],"headers":[],"auth_type":"No Auth","auth_value":"","body_type":"none","body":"","form":[],"http_verify":true,"http_follow_redirects":false,"http_timeout":0.0,"http_ca_file":"","http_cert_file":"","http_key_file":""});
     let mut notes = Vec::new();
     let mut headers = Vec::new();
+    let mut suppressed_headers = Vec::new();
     let mut payload = String::new();
     let mut query = Vec::new();
     let mut cookies = Vec::new();
@@ -503,7 +504,18 @@ fn curl(tokens: &[String]) -> Result<Imported> {
             "method" => explicit = Some(value),
             "proxy" => data["http_proxy"] = json!(value),
             "digest" | "ntlm" => data["http_auth_scheme"] = json!(key),
-            "header" => headers.push(header(&value)?),
+            "header" => {
+                let mut row = header(&value)?;
+                let name = row[0].as_str().unwrap();
+                if value.contains(':')
+                    && row[1] == ""
+                    && crate::generated_headers::configurable(name)
+                {
+                    suppressed_headers.push(name.to_ascii_lowercase());
+                    row.as_array_mut().unwrap().push(json!(true));
+                }
+                headers.push(row);
+            }
             "data" | "raw" | "binary" | "encoded" | "json" => {
                 if key == "binary" && value.starts_with('@') {
                     ensure!(
@@ -781,6 +793,10 @@ fn curl(tokens: &[String]) -> Result<Imported> {
     }
     if compressed {
         default_header(&mut headers, "Accept-Encoding", "gzip, deflate");
+    }
+    headers.retain(|row| row.get(3) != Some(&json!(true)));
+    for name in suppressed_headers {
+        data["generated_headers"][name] = json!({"disabled":true});
     }
     data["headers"] = json!(headers);
     data["name"] = json!(format!(

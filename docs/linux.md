@@ -7,7 +7,7 @@
 Для Debian 12+ / Ubuntu 24.04+:
 
 ```bash
-sudo apt install ./reqon_0.21.1_amd64.deb
+sudo apt install ./reqon_0.22.0_amd64.deb
 reqon
 reqon-cli --version
 ```
@@ -17,7 +17,7 @@ reqon-cli --version
 ## Архив TAR.GZ
 
 ```bash
-tar -xzf Reqon-0.21.1-linux-x86_64.tar.gz
+tar -xzf Reqon-0.22.0-linux-x86_64.tar.gz
 ./Reqon/reqon
 ./Reqon/reqon-cli --version
 ```
@@ -32,9 +32,9 @@ sudo apt install libsecret-tools gnome-keyring ca-certificates libxkbcommon0 lib
 
 Профиль: `$XDG_DATA_HOME/Reqon/native`, по умолчанию `~/.local/share/Reqon/native`. Собственную папку можно выбрать через `--data-dir /path/to/profile`. Файл `portable.flag` рядом с бинарником включает профиль `data` в этой же папке. Не запускайте интерфейс через `sudo`.
 
-Оба комплекта содержат GUI `reqon` и CLI `reqon-cli` версии 0.21.1. В архиве находятся те же бинарники, что и в DEB. CLI собран без графических зависимостей. Руководство `cli-runner.md` находится рядом с бинарниками в архиве и в `/usr/share/doc/reqon/` после установки DEB. Python, Qt и Rust для запуска не требуются. Пользовательские запросы и профили в дистрибутив не входят.
+Оба комплекта содержат GUI `reqon` и CLI `reqon-cli` версии 0.22.0. В архиве находятся те же бинарники, что и в DEB. CLI собран без графических зависимостей. Руководство `cli-runner.md` находится рядом с бинарниками в архиве и в `/usr/share/doc/reqon/` после установки DEB. Python, Qt и Rust для запуска не требуются. Пользовательские запросы и профили в дистрибутив не входят.
 
-Контрольные суммы: `Reqon-0.21.1-linux-SHA256SUMS.txt`.
+Контрольные суммы: `Reqon-0.22.0-linux-SHA256SUMS.txt`.
 
 ## Сборка из исходников
 

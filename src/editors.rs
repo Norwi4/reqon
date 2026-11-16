@@ -73,11 +73,21 @@ impl App {
                                 .iter()
                                 .filter(|p| p.enabled && !p.key.is_empty())
                                 .count(),
-                            2 => request
-                                .headers
-                                .iter()
-                                .filter(|p| p.enabled && !p.key.is_empty())
-                                .count(),
+                            2 => {
+                                request
+                                    .headers
+                                    .iter()
+                                    .filter(|p| p.enabled && !p.key.is_empty())
+                                    .count()
+                                    + if matches!(request.protocol.as_str(), "grpc" | "ws") {
+                                        0
+                                    } else {
+                                        crate::generated_headers::enabled_count(
+                                            request,
+                                            &self.vars(request),
+                                        )
+                                    }
+                            }
                             4 => request
                                 .vars
                                 .iter()
@@ -282,10 +292,11 @@ impl App {
                     .auto_shrink([false, false])
                     .show(&mut child, |ui| {
                         if !matches!(request.protocol.as_str(), "grpc" | "ws") {
-                            crate::generated_headers::draw(ui, request, &variables, t);
+                            changed |= crate::generated_headers::draw(ui, request, &variables, t);
+                        } else {
+                            changed |=
+                                w::pairs_with_bulk(ui, &mut request.headers, ["Name", "Value"], t);
                         }
-                        changed |=
-                            w::pairs_with_bulk(ui, &mut request.headers, ["Name", "Value"], t);
                     });
             }
             3 => {

@@ -249,11 +249,13 @@ pub struct App {
     pub preference_ui: crate::preferences::State,
     pub ai_ui: crate::ai_ui::State,
     pub env_search: String,
+    pub environment_tree: crate::environment_tree::State,
     pub environment_collection: String,
     pub search: String,
     pub search_open: bool,
     pub collapsed: HashSet<String>,
     pub sidebar_visible: bool,
+    pub sidebar_panel: crate::navigation::Panel,
     pub devtools_open: bool,
     pub devtools_tab: usize,
     pub devtools_height: f32,
@@ -336,6 +338,16 @@ impl App {
         ctx.set_zoom_factor(f32::from(ws.preferences.appearance.zoom.clamp(50, 150)) / 100.);
         let theme = crate::theme_registry::current(&ws.preferences, ws.dark, ctx);
         theme.apply(ctx);
+        let sidebar_panel = if ws
+            .active
+            .as_deref()
+            .and_then(crate::environment_tabs::Target::parse)
+            .is_some()
+        {
+            crate::navigation::Panel::Environments
+        } else {
+            crate::navigation::Panel::Collections
+        };
         let mut saved: HashMap<String, String> = ws
             .requests
             .iter()
@@ -428,11 +440,13 @@ impl App {
             preference_ui: Default::default(),
             ai_ui: Default::default(),
             env_search: String::new(),
+            environment_tree: Default::default(),
             environment_collection: String::new(),
             search: String::new(),
             search_open: false,
             collapsed: HashSet::new(),
             sidebar_visible: true,
+            sidebar_panel,
             devtools_open: false,
             devtools_tab: 0,
             devtools_height: 300.,

@@ -28,33 +28,45 @@ impl App {
             ui,
             rect(screen.left(), screen.bottom() - 24., screen.width(), 24.),
         );
-        let sidebar_width = self.ws.sidebar_width.min(screen.width() * 0.4);
+        self.navigation_rail(
+            ui,
+            rect(
+                screen.left(),
+                screen.top() + 36.,
+                crate::navigation::WIDTH,
+                screen.height() - 60.,
+            ),
+        );
+        let content_left = screen.left() + crate::navigation::WIDTH;
+        let content_width = screen.width() - crate::navigation::WIDTH;
+        let sidebar_width = self.ws.sidebar_width.min(content_width * 0.4);
         let sidebar =
             sidebar_width * crate::panes::sidebar_openness(ui.ctx(), self.sidebar_visible);
         if sidebar > 0. {
             // Bruno animates the outer width while keeping its contents at their full width.
             let old_clip = ui.clip_rect();
             ui.set_clip_rect(old_clip.intersect(rect(
-                screen.left(),
+                content_left,
                 screen.top() + 36.,
                 sidebar,
                 screen.height() - 60. - devtools_height,
             )));
-            self.sidebar(
-                ui,
-                rect(
-                    screen.left(),
-                    screen.top() + 36.,
-                    sidebar_width,
-                    screen.height() - 60. - devtools_height,
-                ),
+            let bounds = rect(
+                content_left,
+                screen.top() + 36.,
+                sidebar_width,
+                screen.height() - 60. - devtools_height,
             );
+            match self.sidebar_panel {
+                crate::navigation::Panel::Collections => self.sidebar(ui, bounds),
+                crate::navigation::Panel::Environments => self.environment_sidebar(ui, bounds),
+            }
             ui.set_clip_rect(old_clip);
             w::line(
                 ui,
-                pos2(screen.left() + sidebar, screen.top() + 36.),
+                pos2(content_left + sidebar, screen.top() + 36.),
                 pos2(
-                    screen.left() + sidebar,
+                    content_left + sidebar,
                     screen.bottom() - 24. - devtools_height,
                 ),
                 t.border,
@@ -63,7 +75,7 @@ impl App {
         if self.sidebar_visible && sidebar >= sidebar_width - 0.1 {
             let drag = ui.interact(
                 rect(
-                    screen.left() + sidebar - 3.,
+                    content_left + sidebar - 3.,
                     screen.top() + 36.,
                     6.,
                     screen.height() - 60. - devtools_height,
@@ -81,9 +93,9 @@ impl App {
             }
         }
         let main = rect(
-            screen.left() + sidebar,
+            content_left + sidebar,
             screen.top() + 36.,
-            screen.width() - sidebar,
+            content_width - sidebar,
             screen.height() - 60. - devtools_height,
         );
         if self.ws.active.is_some() {
@@ -94,9 +106,9 @@ impl App {
         if self.devtools_open {
             let resize = ui.interact(
                 rect(
-                    screen.left(),
+                    content_left,
                     screen.bottom() - 26. - devtools_height,
-                    screen.width(),
+                    content_width,
                     5.,
                 ),
                 ui.scope_id().with("devtools-resize"),
@@ -112,9 +124,9 @@ impl App {
             self.devtools(
                 ui,
                 rect(
-                    screen.left(),
+                    content_left,
                     screen.bottom() - 24. - devtools_height,
-                    screen.width(),
+                    content_width,
                     devtools_height,
                 ),
             );
@@ -313,7 +325,6 @@ impl App {
         ui.painter().rect_filled(r, 0, t.sidebar);
         w::line(ui, r.left_top(), r.right_top(), t.border);
         for (i, (icon, name)) in [
-            (Icon::Settings, "Preferences"),
             (Icon::Key, "Environments"),
             (Icon::Palette, "Theme"),
             (Icon::Bell, "Notifications"),
@@ -327,15 +338,19 @@ impl App {
             }
             let response = w::icon_button(
                 ui,
-                rect(r.left() + 17. + i as f32 * 26., r.top() + 1., 22., 22.),
+                rect(
+                    r.left() + crate::navigation::WIDTH + 6. + i as f32 * 26.,
+                    r.top() + 1.,
+                    22.,
+                    22.,
+                ),
                 icon,
                 name,
                 t,
             );
             match i {
-                0 if response.clicked() => self.actions.push(Action::Dialog(Dialog::Settings)),
-                1 if response.clicked() => self.actions.push(Action::Dialog(Dialog::Environments)),
-                2 => {
+                0 if response.clicked() => self.actions.push(Action::Dialog(Dialog::Environments)),
+                1 => {
                     egui::Popup::menu(&response).show(|ui| {
                         for (title, dark) in [("Dark", true), ("Light", false)] {
                             if ui.selectable_label(t.dark == dark, title).clicked() {
@@ -347,7 +362,7 @@ impl App {
                         }
                     });
                 }
-                3 => {
+                2 => {
                     egui::Popup::menu(&response).show(|ui| {
                         ui.set_width(280.);
                         ui.strong("Notifications");
@@ -359,7 +374,7 @@ impl App {
                         }
                     });
                 }
-                4 if response.clicked() => {
+                3 if response.clicked() => {
                     let cid = self.active_collection_id();
                     self.open_git(&cid);
                 }
@@ -410,6 +425,10 @@ impl App {
             .clicked()
         {
             self.search_open = !self.search_open;
+            if self.search_open {
+                self.sidebar_visible = true;
+                self.sidebar_panel = crate::navigation::Panel::Collections;
+            }
         }
         let cookies = rect(r.right() - 262., r.top(), 85., 24.);
         w::icon(

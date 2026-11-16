@@ -30,7 +30,7 @@
 /data/
 /.cargo-home/
 
-# Keep the patched GUI dependencies, including their licenses and patch notes.
+# Keep patched dependencies, including their licenses and patch notes.
 /vendor/*/*
 !/vendor/*/src/
 !/vendor/*/Cargo.toml

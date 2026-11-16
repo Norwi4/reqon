@@ -1131,6 +1131,17 @@ fn pairs_styled(
     bold: bool,
 ) -> bool {
     // Auto IDs also include ancestor widget counts (notifications, badges, etc.).
+    pairs_table(ui, rows, labels, t, bold, &mut [])
+}
+
+fn pairs_table(
+    ui: &mut Ui,
+    rows: &mut Vec<Pair>,
+    labels: [&str; 2],
+    t: Theme,
+    bold: bool,
+    generated: &mut [crate::generated_headers::HeaderRow],
+) -> bool {
     // Keep table identity inside the persistent scope; callers scope sibling tables.
     let table_id = ui.scope_id().with(("pairs-table", labels));
     let mut changed = false;
@@ -1175,6 +1186,7 @@ fn pairs_styled(
     );
     line(ui, header.left_bottom(), header.right_bottom(), t.border);
     ui.allocate_space(vec2(width, h));
+    changed |= crate::generated_headers_ui::table_rows(ui, generated, width, first, second, t);
     let mut remove = None;
     let mut bottom = header.bottom();
     for (i, p) in rows.iter_mut().enumerate() {
@@ -1271,6 +1283,17 @@ fn pairs_with_bulk_styled(
     t: Theme,
     bold: bool,
 ) -> bool {
+    pairs_with_generated(ui, rows, labels, t, bold, &mut [])
+}
+
+pub fn pairs_with_generated(
+    ui: &mut Ui,
+    rows: &mut Vec<Pair>,
+    labels: [&str; 2],
+    t: Theme,
+    bold: bool,
+    generated: &mut [crate::generated_headers::HeaderRow],
+) -> bool {
     let id = ui.scope_id().with(("bulk", labels));
     let mut state = ui
         .ctx()
@@ -1278,7 +1301,16 @@ fn pairs_with_bulk_styled(
         .unwrap_or_default();
     let mut changed = false;
     if state.0 {
-        changed |= ui
+        if !generated.is_empty() {
+            // Keep generated rows separate from the custom-header bulk buffer.
+            let width = ui.available_width().max(280.);
+            let first = 25. + (width - 2.) * 0.20;
+            let second = width - 58. - (width - 2.) * 0.25;
+            changed |=
+                crate::generated_headers_ui::table_rows(ui, generated, width, first, second, t);
+            ui.add_space(8.);
+        }
+        let bulk_changed = ui
             .add_sized(
                 vec2(ui.available_width(), 120.),
                 TextEdit::multiline(&mut state.1)
@@ -1286,7 +1318,8 @@ fn pairs_with_bulk_styled(
                     .hint_text("Name: Value"),
             )
             .changed();
-        if changed {
+        changed |= bulk_changed;
+        if bulk_changed {
             let old = std::mem::take(rows);
             *rows = state
                 .1
@@ -1308,7 +1341,7 @@ fn pairs_with_bulk_styled(
                 .collect();
         }
     } else {
-        changed |= pairs_styled(ui, rows, labels, t, bold);
+        changed |= pairs_table(ui, rows, labels, t, bold, generated);
     }
     let row = ui.allocate_space(vec2(ui.available_width(), 39.)).1;
     let label = if state.0 { "Table Edit" } else { "Bulk Edit" };

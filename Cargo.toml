@@ -1,6 +1,6 @@
 [package]
 name = "reqon"
-version = "0.21.1"
+version = "0.22.0"
 edition = "2024"
 publish = false
 description = "Reqon API client"
@@ -97,5 +97,6 @@ lto = "thin"
 codegen-units = 1
 
 [patch.crates-io]
+reqwest = { path = "vendor/reqwest" }
 egui = { path = "vendor/egui" }
 epaint = { path = "vendor/epaint" }

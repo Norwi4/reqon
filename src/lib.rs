@@ -47,6 +47,8 @@ pub mod engine;
 mod environment_rows;
 #[cfg(feature = "desktop")]
 mod environment_tabs;
+#[cfg(feature = "desktop")]
+mod environment_tree;
 #[cfg(all(test, feature = "desktop"))]
 mod environment_tabs_tests;
 mod environment_vault;
@@ -105,6 +107,8 @@ mod migration;
 mod mock;
 pub mod model;
 mod native_format;
+#[cfg(feature = "desktop")]
+mod navigation;
 mod network;
 #[cfg(feature = "desktop")]
 mod new_request;

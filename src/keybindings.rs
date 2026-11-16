@@ -420,6 +420,7 @@ impl App {
                 "sidebarSearch" | "globalSearch" => {
                     self.search_open = true;
                     self.sidebar_visible = true;
+                    self.sidebar_panel = crate::navigation::Panel::Collections;
                 }
                 "collapseSidebar" => self.sidebar_visible = !self.sidebar_visible,
                 "sendRequest" => self.actions.push(Action::Send),

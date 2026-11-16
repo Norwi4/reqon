@@ -94,7 +94,7 @@ impl App {
             }
         }
     }
-    fn environment_list(&self, scope: &Scope) -> &[Environment] {
+    pub(crate) fn environment_list(&self, scope: &Scope) -> &[Environment] {
         match scope {
             Scope::Workspace => &self.ws.environments,
             Scope::Collection(cid) => self
@@ -181,6 +181,9 @@ impl App {
         self.mark_workspace_changed();
     }
     pub fn open_environment(&mut self, target: Target, focus: bool) {
+        self.sidebar_panel = crate::navigation::Panel::Environments;
+        self.sidebar_visible = true;
+        self.environment_tree.reveal(&target.scope);
         if let Some(cid) = target.collection() {
             self.environment_collection = cid.into();
         } else if self.environment_collection.is_empty() {
@@ -264,6 +267,7 @@ impl App {
         };
         self.environment_list_mut(&scope)?.push(env);
         self.environment_changed(&scope);
+        self.env_search.clear();
         self.open_environment(target.clone(), true);
         Ok(target)
     }
@@ -551,7 +555,7 @@ impl App {
                 }
             });
     }
-    fn environment_scope_hint(&self, scope: &Scope) -> String {
+    pub(crate) fn environment_scope_hint(&self, scope: &Scope) -> String {
         match scope {
             Scope::Workspace => "Shared by all collections in this workspace.".into(),
             Scope::Collection(cid) => {
@@ -571,152 +575,14 @@ impl App {
     }
     pub fn environment_document(&mut self, ui: &mut Ui, r: Rect, target: Target) {
         let t = self.theme;
-        let cid = target
-            .collection()
-            .map(str::to_owned)
-            .unwrap_or_else(|| self.active_collection_id());
-        let side = rect(r.left(), r.top(), 218., r.height());
-        w::line(ui, side.right_top(), side.right_bottom(), t.border);
-        let mut nav = w::child(ui, side.shrink(12.), "env-navigation");
-        nav.spacing_mut().item_spacing.y = 4.;
-        nav.add(
-            egui::TextEdit::singleline(&mut self.env_search)
-                .hint_text("Search environments...")
-                .font(egui::FontId::proportional(12.)),
-        );
-        let filter = self.env_search.to_lowercase();
-        egui::ScrollArea::vertical().show(&mut nav, |ui| {
-            let globals = Target {
-                scope: Scope::Globals,
-                name: "Globals".into(),
-            };
-            if ui.selectable_label(target == globals, "Globals").clicked() {
-                self.open_environment(globals, false);
-            }
-            for (scope, label) in [
-                (Scope::Workspace, "WORKSPACE"),
-                (Scope::Collection(cid.clone()), "COLLECTION"),
-            ] {
-                if matches!(&scope,Scope::Collection(c) if c.is_empty()) {
-                    continue;
-                }
-                ui.add_space(14.);
-                let row = ui.allocate_space(vec2(ui.available_width(), 27.)).1;
-                w::semibold(
-                    ui,
-                    pos2(row.left() + 4., row.center().y),
-                    label,
-                    11.,
-                    t.muted,
-                );
-                ui.interact(
-                    rect(row.left(), row.top(), row.width() - 56., row.height()),
-                    ui.scope_id().with(label),
-                    Sense::hover(),
-                )
-                .on_hover_text(self.environment_scope_hint(&scope));
-                if menu::icon_button(
-                    ui,
-                    rect(row.right() - 51., row.top(), 25., 25.),
-                    "Import",
-                    if scope == Scope::Workspace {
-                        "Import workspace environment"
-                    } else {
-                        "Import collection environment"
-                    },
-                    false,
-                    t,
-                )
-                .clicked()
-                {
-                    if let Some(path) = rfd::FileDialog::new()
-                        .add_filter("Environment", &["req", "bru", "json", "env", "yml", "yaml"])
-                        .pick_file()
-                    {
-                        if let Err(e) = crate::environments::import_environment(&path)
-                            .and_then(|env| self.create_environment(scope.clone(), Some(env)))
-                        {
-                            self.notice(format!("Import failed: {e:#}"));
-                        }
-                    }
-                }
-                if menu::icon_button(
-                    ui,
-                    rect(row.right() - 25., row.top(), 25., 25.),
-                    "Plus",
-                    if scope == Scope::Workspace {
-                        "New workspace environment"
-                    } else {
-                        "New collection environment"
-                    },
-                    false,
-                    t,
-                )
-                .clicked()
-                {
-                    if let Err(e) = self.create_environment(scope.clone(), None) {
-                        self.notice(e.to_string());
-                    }
-                }
-                if let Scope::Collection(cid) = &scope {
-                    if let Some(collection) = self.ws.collections.iter().find(|c| &c.id == cid) {
-                        let row = ui.allocate_space(vec2(ui.available_width(), 20.)).1;
-                        w::elided_label(
-                            ui,
-                            row.shrink2(vec2(4., 0.)),
-                            &collection.name,
-                            11.,
-                            t.muted,
-                        );
-                        ui.interact(row, ui.scope_id().with("collection-name"), Sense::hover())
-                            .on_hover_text(self.environment_scope_hint(&scope));
-                    }
-                }
-                for env in self.environment_list(&scope).to_vec() {
-                    if !env.name.to_lowercase().contains(&filter) {
-                        continue;
-                    }
-                    let item = Target {
-                        scope: scope.clone(),
-                        name: env.name,
-                    };
-                    let row = ui.allocate_space(vec2(ui.available_width(), 30.)).1;
-                    let response = ui.interact(row, ui.scope_id().with(item.id()), Sense::click());
-                    if target == item || response.hovered() {
-                        ui.painter().rect_filled(row, 4, t.surface);
-                    }
-                    w::icon(
-                        ui,
-                        pos2(row.left() + 12., row.center().y),
-                        if self.environment_is_active(&item) {
-                            Icon::Check
-                        } else {
-                            Icon::Globe
-                        },
-                        t.muted,
-                        14.,
-                    );
-                    w::elided_label(
-                        ui,
-                        rect(row.left() + 27., row.top(), row.width() - 29., row.height()),
-                        &item.name,
-                        13.,
-                        t.text,
-                    );
-                    if response.clicked() {
-                        self.open_environment(item, false);
-                    }
-                }
-            }
-        });
         let Some(rows) = self.environment_rows(&target).cloned() else {
             self.close(&target.id());
             return;
         };
         let body = rect(
-            side.right() + 20.,
+            r.left() + 20.,
             r.top() + 18.,
-            r.right() - side.right() - 40.,
+            r.width() - 40.,
             r.height() - 34.,
         );
         let state_id = self.environment_editor_key(&target.id());

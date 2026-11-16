@@ -114,6 +114,7 @@ pub fn apply(request: &mut Request, mut parsed: Request) {
     // A removed command option must stop affecting the next execution.
     // Keep unrelated import metadata, examples and extension fields.
     for key in [
+        "generated_headers",
         "http_version",
         "http_follow_original_method",
         "http_auth_scheme",
