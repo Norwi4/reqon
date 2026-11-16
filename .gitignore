@@ -3,6 +3,7 @@
 /*
 !/.gitignore
 !/.gitattributes
+!/AGENTS.md
 !/Cargo.toml
 !/Cargo.lock
 !/cargo-local.ps1

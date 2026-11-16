@@ -24,7 +24,7 @@ const notesIndex = process.argv.indexOf('--notes-file');
 if (notesIndex >= 0 && !process.argv[notesIndex + 1]) throw new Error('--notes-file requires a path');
 const body = await readFile(notesIndex >= 0 ? path.resolve(root, process.argv[notesIndex + 1]) : path.join(root, `docs/release-${version}.md`), 'utf8');
 const filenames = [
-  `Reqon-Setup-${version}-win64.exe`,
+  `Reqon-Setup-${version}.exe`,
   `Reqon-${version}-windows-x86_64.zip`,
   `Reqon-CLI-${version}-windows-x86_64.zip`,
   ...(!windowsOnly ? [`Reqon-${version}-linux-x86_64.tar.gz`, `reqon_${version}_amd64.deb`] : []),

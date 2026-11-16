@@ -53,7 +53,7 @@ try {
     # ZIP uses the same per-user profile as the installer by default.
     Compress-Archive -LiteralPath $buildDist -DestinationPath $zip -Force
     & .\scripts\package-cli.ps1 -Version $reqonVersion
-    $artifacts=@($zip,(Join-Path $reqonRoot "dist\Reqon-Setup-$reqonVersion-win64.exe"),(Join-Path $reqonRoot "dist\Reqon-CLI-$reqonVersion-windows-x86_64.zip"))
+    $artifacts=@($zip,(Join-Path $reqonRoot "dist\Reqon-Setup-$reqonVersion.exe"),(Join-Path $reqonRoot "dist\Reqon-CLI-$reqonVersion-windows-x86_64.zip"))
     $checksums=foreach($artifact in $artifacts){"$((Get-FileHash -LiteralPath $artifact -Algorithm SHA256).Hash.ToLowerInvariant())  $([IO.Path]::GetFileName($artifact))"}
     $checksums | Set-Content -LiteralPath "dist\Reqon-$reqonVersion-SHA256SUMS.txt" -Encoding ascii
     $artifacts | ForEach-Object {Get-Item -LiteralPath $_ | Select-Object FullName,Length}

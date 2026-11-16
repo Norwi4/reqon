@@ -12,7 +12,7 @@
 
 Готовые сборки находятся в [GitHub Releases](https://github.com/Norwi4/reqon/releases/latest).
 
-Установщик Windows x64: [Reqon-Setup-0.22.0-win64.exe](https://github.com/Norwi4/reqon/releases/download/v0.22.0/Reqon-Setup-0.22.0-win64.exe).
+Установщик Windows x64: [Reqon-Setup-0.22.0.exe](https://github.com/Norwi4/reqon/releases/download/v0.22.0/Reqon-Setup-0.22.0.exe).
 Архив: [Reqon-0.22.0-windows-x86_64.zip](https://github.com/Norwi4/reqon/releases/download/v0.22.0/Reqon-0.22.0-windows-x86_64.zip).
 Контрольные суммы: [Reqon-0.22.0-SHA256SUMS.txt](https://github.com/Norwi4/reqon/releases/download/v0.22.0/Reqon-0.22.0-SHA256SUMS.txt).
 Оба комплекта содержат `Reqon.exe` (GUI) и `reqon-cli.exe` (CLI), а также руководство CLI и [описание выпуска](docs/release-0.22.0.md).
