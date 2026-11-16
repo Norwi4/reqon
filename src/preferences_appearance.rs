@@ -447,7 +447,7 @@ pub fn beta(ui: &mut egui::Ui, p: &mut Preferences, t: Theme, tab: &mut usize) -
     }
     changed
 }
-pub fn about(ui: &mut egui::Ui, p: &mut Preferences, t: Theme, root: &std::path::Path) {
+pub fn about(ui: &mut egui::Ui, p: &mut Preferences, t: Theme, root: &std::path::Path) -> bool {
     ui.add_space(10.);
     row_text(ui, "Version", concat!("v", env!("CARGO_PKG_VERSION")), t);
     ui.horizontal(|ui| {
@@ -462,15 +462,8 @@ pub fn about(ui: &mut egui::Ui, p: &mut Preferences, t: Theme, root: &std::path:
     });
     ui.add_space(16.);
     ui.label("Software Updates");
-    ui.add_enabled_ui(false, |ui| {
-        toggle_row(
-            ui,
-            &mut p.about.automatic_updates,
-            "Automatically download and install updates.",
-            t,
-        );
-    });
-    hint(ui, "Updates are installed from local Reqon builds.", t);
+    let check_updates = ui.button("Check for updates").clicked();
+    hint(ui, "Download and install new versions when you choose to update.", t);
     ui.add_space(24.);
     ui.label("Telemetry");
     ui.add_enabled_ui(false, |ui| {
@@ -483,4 +476,5 @@ pub fn about(ui: &mut egui::Ui, p: &mut Preferences, t: Theme, root: &std::path:
     });
     ui.add_space(22.);
     hint(ui, "Reqon · API client for HTTP, gRPC and WebSocket.", t);
+    check_updates
 }

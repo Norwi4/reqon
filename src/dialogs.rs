@@ -615,6 +615,11 @@ impl App {
                     ui.add_space(12.);
                     ui.label("API client for HTTP, gRPC and WebSocket");
                     ui.hyperlink_to("reqon.ru", "https://reqon.ru/");
+                    ui.add_space(12.);
+                    if ui.button("Check for updates").clicked() {
+                        self.open_updates();
+                        close = true;
+                    }
                 }
                 Dialog::ApiSpecs => {
                     ui.label("Import an OpenAPI 3 or Swagger 2 specification.");

@@ -208,6 +208,12 @@ mod grpc_tls_ui;
 #[cfg(feature = "desktop")]
 mod tree_move_ui;
 mod ui_state;
+#[cfg(feature = "desktop")]
+mod updates;
+#[cfg(feature = "desktop")]
+mod update_install;
+#[cfg(feature = "desktop")]
+mod updates_ui;
 
 mod protocol_prepare;
 

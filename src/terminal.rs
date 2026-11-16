@@ -207,6 +207,9 @@ impl Default for Manager {
     }
 }
 impl Manager {
+    pub fn has_running_sessions(&self) -> bool {
+        self.starting > 0 || self.sessions.iter().any(|session| !session.exited.load(Ordering::Relaxed))
+    }
     pub fn open(&mut self, cwd: PathBuf, ctx: egui::Context) {
         self.initialized = true;
         self.starting += 1;

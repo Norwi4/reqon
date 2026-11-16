@@ -37,6 +37,7 @@ pub enum Job {
 }
 #[derive(Default)]
 pub struct State {
+    pub updates: crate::updates_ui::State,
     pub data: PathBuf,
     pub registry: Registry,
     pub inactive: HashMap<String, Box<App>>,

@@ -280,7 +280,7 @@ impl App {
                 },
                 11=>crate::preferences_appearance::support(ui,t),
                 12=>changed|=crate::preferences_appearance::beta(ui,&mut p,t,&mut self.preferences_tab),
-                13=>crate::preferences_appearance::about(ui,&mut p,t,&self.root),_=>{}
+                13=>{if crate::preferences_appearance::about(ui,&mut p,t,&self.root){self.open_updates();}},_=>{}
             }
         });
         changed |= crate::preferences_connection::certificate_dialog(

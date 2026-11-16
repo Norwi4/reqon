@@ -12,6 +12,11 @@ pub struct State {
     error: String,
     environments: bool,
 }
+impl State {
+    pub fn is_pending(&self) -> bool {
+        self.pending.is_some()
+    }
+}
 pub fn draw(app: &mut App, ui: &mut eframe::egui::Ui, cid: &str) {
     let Some(root) = app
         .ws

@@ -194,6 +194,10 @@ impl App {
                 self.actions.push(Action::Dialog(Dialog::Settings));
                 ui.close();
             }
+            if ui.button("Check for updates").clicked() {
+                self.open_updates();
+                ui.close();
+            }
             if ui.button("About Reqon").clicked() {
                 self.actions.push(Action::Dialog(Dialog::About));
                 ui.close();

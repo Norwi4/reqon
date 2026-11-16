@@ -210,6 +210,7 @@ pub struct App {
     pub workspaces: crate::workspaces::State,
     pub root: PathBuf,
     pub writer: crate::persistence::Writer,
+    pub save_error_generation: u64,
     pub tree: crate::tree::Cache,
     pub file_explorer: crate::file_explorer::State,
     pub tree_moving: bool,
@@ -311,6 +312,7 @@ impl App {
         registry.save(&root)?;
         app.workspaces.data = root;
         app.workspaces.registry = registry;
+        app.workspaces.updates.restore_outcome(&app.workspaces.data);
         Ok(app)
     }
     pub(crate) fn from_workspace(ctx: &egui::Context, root: PathBuf) -> anyhow::Result<Self> {
@@ -438,6 +440,7 @@ impl App {
             preferences_shown: false,
             preferences_tab: 0,
             preference_ui: Default::default(),
+            save_error_generation: 0,
             ai_ui: Default::default(),
             env_search: String::new(),
             environment_tree: Default::default(),
@@ -946,6 +949,7 @@ impl App {
             }
         }
         while let Ok(error) = self.writer.errors.try_recv() {
+            self.save_error_generation = self.save_error_generation.wrapping_add(1);
             self.notice(error);
         }
         self.finish_saves();
@@ -1410,19 +1414,29 @@ impl eframe::App for App {
         for app in self.workspaces.inactive.values_mut() {
             app.poll(ctx);
         }
-        self.workspace_tick(ctx);
-        self.preferences_tick(ctx);
+        if !self.workspaces.updates.locked() {
+            self.workspace_tick(ctx);
+            self.preferences_tick(ctx);
+        }
+        self.updates_tick(ctx);
     }
     fn ui(&mut self, ui: &mut egui::Ui, _: &mut eframe::Frame) {
         let frame_start = Instant::now();
         let ctx = ui.ctx().clone();
-        self.handle_shortcuts(&ctx);
+        if !self.workspaces.updates.locked() {
+            self.handle_shortcuts(&ctx);
+        }
         let scope = self.workspaces.registry.active.clone();
-        ui.push_id(("workspace", scope), |ui| self.draw(ui));
-        self.dialogs(&ctx);
-        self.workspace_dialogs(&ctx);
-        self.ai_dialog(&ctx);
-        self.handle_actions(&ctx);
+        ui.add_enabled_ui(!self.workspaces.updates.locked(), |ui| {
+            ui.push_id(("workspace", scope), |ui| self.draw(ui));
+        });
+        if !self.workspaces.updates.locked() {
+            self.dialogs(&ctx);
+            self.workspace_dialogs(&ctx);
+            self.ai_dialog(&ctx);
+            self.handle_actions(&ctx);
+        }
+        self.updates_dialog(&ctx);
         crate::window_frame::resize(ui);
         if self.frame_times.len() >= 120 {
             self.frame_times.pop_front();

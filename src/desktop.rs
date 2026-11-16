@@ -3,6 +3,9 @@ use crate::{app, benchmark, ide_bridge, migration, mock, storage, window_frame};
 
 pub fn run_desktop() -> eframe::Result {
     let args: Vec<String> = std::env::args().collect();
+    if crate::update_install::run_helper(&args) {
+        return Ok(());
+    }
     if args.iter().any(|a| a == "--ide-bridge") {
         ide_bridge::serve();
         return Ok(());
@@ -109,6 +112,8 @@ pub fn run_desktop() -> eframe::Result {
             .with_title("Reqon"),
         ..Default::default()
     };
+    let update_handoff: crate::update_install::Handoff = Default::default();
+    let app_handoff = update_handoff.clone();
     eframe::run_native(
         "Reqon",
         options,
@@ -154,7 +159,14 @@ pub fn run_desktop() -> eframe::Result {
                     eprintln!("Native window resize: {error:#}");
                 }
             }
-            Ok(Box::new(app::App::new(cc, root)?))
+            let mut app = app::App::new(cc, root)?;
+            app.workspaces.updates.handoff = app_handoff;
+            Ok(Box::new(app))
         }),
-    )
+    )?;
+    // App::drop and all workspace writers have finished before the helper starts.
+    if let Some(pending) = update_handoff.lock().unwrap().take() {
+        crate::update_install::launch(pending);
+    }
+    Ok(())
 }
