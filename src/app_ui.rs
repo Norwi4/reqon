@@ -160,49 +160,7 @@ impl App {
             "Menu",
             t,
         );
-        egui::Popup::menu(&menu).show(|ui| {
-            if ui.button("New request                 Ctrl+N").clicked() {
-                self.actions.push(Action::NewRequest(
-                    self.active_collection_id(),
-                    String::new(),
-                ));
-                ui.close();
-            }
-            if ui.button("Create collection").clicked() {
-                self.actions.push(Action::NewCollection);
-                ui.close();
-            }
-            if ui.button("Open collection              Ctrl+O").clicked() {
-                self.actions.push(Action::OpenCollection);
-                ui.close();
-            }
-            ui.separator();
-            if ui.button("Import collection").clicked() {
-                self.actions.push(Action::ImportPostman);
-                ui.close();
-            }
-            if ui.button("Import cURL").clicked() {
-                self.actions.push(Action::Dialog(Dialog::ImportCurl));
-                ui.close();
-            }
-            if ui.button("Export collection").clicked() {
-                self.actions.push(Action::ExportPostman(None));
-                ui.close();
-            }
-            ui.separator();
-            if ui.button("Preferences").clicked() {
-                self.actions.push(Action::Dialog(Dialog::Settings));
-                ui.close();
-            }
-            if ui.button("Check for updates").clicked() {
-                self.open_updates();
-                ui.close();
-            }
-            if ui.button("About Reqon").clicked() {
-                self.actions.push(Action::Dialog(Dialog::About));
-                ui.close();
-            }
-        });
+        self.main_menu(ui, &menu);
         if w::icon_button(
             ui,
             rect(r.left() + 35., r.top() + 3., 27., 30.),

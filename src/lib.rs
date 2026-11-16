@@ -5,6 +5,8 @@ mod ai_ui;
 mod app;
 #[cfg(feature = "desktop")]
 mod app_ui;
+#[cfg(feature = "desktop")]
+mod main_menu;
 mod auth;
 mod auth_migration;
 #[cfg(feature = "desktop")]
